@@ -1,0 +1,53 @@
+{
+  "name": "valentini-assistant",
+  "version": "1.0.0",
+  "description": "Control de horas y pagos de empleados",
+  "author": "Valentini Solutions",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite build && electron .",
+    "build": "vite build",
+    "start": "electron .",
+    "pack": "vite build && electron-builder --dir",
+    "vite:dev": "vite",
+    "electron:dev": "vite build && electron ."
+  },
+  "build": {
+    "appId": "com.valentini.assistant",
+    "productName": "Valentini Assistant",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": null,
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Valentini Assistant"
+    }
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "sql.js": "^1.11.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "29.4.6",
+    "electron-builder": "^26.8.1",
+    "vite": "^5.4.2"
+  }
+}
