@@ -1,42 +1,54 @@
 {
-  "name": "valentini-assistant",
+  "name": "nominacore",
   "version": "1.0.0",
   "description": "Control de horas y pagos de empleados",
-  "author": "Valentini Solutions",
-  "main": "electron/main.js",
+  "author": "NominaCore",
+  "main": "electron-dist/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rikrdo1020/nominacore-app.git"
+  },
   "scripts": {
-    "dev": "vite build && electron .",
-    "build": "vite build",
+    "dev": "vite build && npm run build:electron && electron .",
+    "build": "vite build && npm run build:electron",
+    "build:electron": "tsc -p tsconfig.electron.json",
     "start": "electron .",
-    "pack": "vite build && electron-builder --dir",
+    "pack": "vite build && npm run build:electron && electron-builder --dir",
+    "release": "vite build && npm run build:electron && electron-builder --publish always",
     "vite:dev": "vite",
-    "electron:dev": "vite build && electron ."
+    "electron:dev": "vite build && npm run build:electron && electron ."
   },
   "build": {
     "appId": "com.valentini.assistant",
-    "productName": "Valentini Assistant",
+    "productName": "NominaCore",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
+      "electron-dist/**/*",
       "package.json"
     ],
     "win": {
       "target": "nsis",
-      "icon": null,
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Valentini Assistant"
+      "shortcutName": "NominaCore"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rikrdo1020",
+      "repo": "nominacore-app",
+      "releaseType": "release"
     }
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "electron-updater": "^6.8.3",
     "express": "^4.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -45,9 +57,16 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.1",
     "electron": "29.4.6",
     "electron-builder": "^26.8.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
     "vite": "^5.4.2"
   }
 }

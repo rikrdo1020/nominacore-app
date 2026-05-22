@@ -1,21 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import type { Employee, Deduction } from '../types/api';
+
+interface Message {
+  type: 'error' | 'success';
+  text: string;
+}
+
+interface DeductionForm {
+  employee_id: string;
+  date: string;
+  type: 'Comida' | 'Vales' | 'Otro';
+  amount: string;
+  description: string;
+}
 
 export default function Deductions() {
-  const [deductions, setDeductions] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [form, setForm] = useState({
+  const [deductions, setDeductions] = useState<Deduction[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [form, setForm] = useState<DeductionForm>({
     employee_id: '', date: new Date().toISOString().split('T')[0],
     type: 'Comida', amount: '', description: '',
   });
   const [filterEmp, setFilterEmp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<Message | null>(null);
 
-  const showError = (msg) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg) => setMessage({ type: 'success', text: msg });
+  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
+  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
   const clearMessage = () => setMessage(null);
 
   const load = async () => {
+    setLoading(true);
     clearMessage();
     try {
       if (window.api) {
@@ -23,8 +38,11 @@ export default function Deductions() {
         setDeductions(await window.api.getDeductions(filterEmp ? Number(filterEmp) : null));
       }
     } catch (err) {
-      showError('Error al cargar descuentos: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al cargar descuentos: ' + msg);
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,14 +65,15 @@ export default function Deductions() {
       setForm(f => ({ ...f, employee_id: '', amount: '', description: '' }));
       await load();
     } catch (err) {
-      showError('Error al registrar descuento: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al registrar descuento: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     if (!confirm('¿Eliminar este descuento?')) return;
     setLoading(true);
     clearMessage();
@@ -63,14 +82,15 @@ export default function Deductions() {
       showSuccess('Descuento eliminado');
       await load();
     } catch (err) {
-      showError('Error al eliminar: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al eliminar: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const empName = (id) => employees.find(e => e.id === id)?.name || `ID:${id}`;
+  const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
 
   return (
     <div>
@@ -96,7 +116,7 @@ export default function Deductions() {
           </div>
           <div className="form-group">
             <label>Tipo</label>
-            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as DeductionForm['type'] }))}>
               <option value="Comida">Comida</option>
               <option value="Vales">Vales</option>
               <option value="Otro">Otro</option>
@@ -129,7 +149,12 @@ export default function Deductions() {
         </div>
       </div>
       <div className="card">
-        {deductions.length === 0 ? (
+        {loading && deductions.length === 0 ? (
+          <div className="empty-state">
+            <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
+            <p style={{ marginTop: 12 }}>Cargando descuentos...</p>
+          </div>
+        ) : deductions.length === 0 ? (
           <div className="empty-state"><p>No hay descuentos registrados</p></div>
         ) : (
           <table>

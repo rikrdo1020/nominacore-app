@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import Employees from './pages/Employees';
 import RateRules from './pages/RateRules';
 import WorkRecords from './pages/WorkRecords';
 import Deductions from './pages/Deductions';
 import PayrollReport from './pages/PayrollReport';
+import UpdateNotification from './components/UpdateNotification';
 import './App.css';
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="app-layout">
+    <>
+      <UpdateNotification />
+      <div className="app-layout">
       <nav className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
         <div className="sidebar-header">
-          <h2>Valentini</h2>
+          <h2>NominaCore</h2>
           <button className="toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? '◀' : '▶'}
           </button>
@@ -41,5 +44,6 @@ export default function App() {
         </Routes>
       </main>
     </div>
+    </>
   );
 }

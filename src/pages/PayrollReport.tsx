@@ -1,31 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import type { Employee, PayrollReportData } from '../types/api';
+
+interface Message {
+  type: 'error' | 'success';
+  text: string;
+}
 
 export default function PayrollReport() {
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmp, setSelectedEmp] = useState('');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [report, setReport] = useState(null);
+  const [report, setReport] = useState<PayrollReportData | null>(null);
   const [exportingAll, setExportingAll] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<Message | null>(null);
 
-  const showError = (msg) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg) => setMessage({ type: 'success', text: msg });
+  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
+  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
   const clearMessage = () => setMessage(null);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       try {
         if (window.api) setEmployees(await window.api.getEmployees());
       } catch (err) {
-        showError('Error al cargar empleados: ' + (err.message || 'Desconocido'));
+        const msg = err instanceof Error ? err.message : 'Desconocido';
+        showError('Error al cargar empleados: ' + msg);
         console.error(err);
+      } finally {
+        setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const generate = async () => {
@@ -36,7 +47,8 @@ export default function PayrollReport() {
       const result = await window.api.calculatePayroll(Number(selectedEmp), startDate, endDate);
       setReport(result);
     } catch (err) {
-      showError('Error al generar reporte: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al generar reporte: ' + msg);
       console.error(err);
       setReport(null);
     } finally {
@@ -54,7 +66,8 @@ export default function PayrollReport() {
       showSuccess('Pago registrado exitosamente');
       setReport(null);
     } catch (err) {
-      showError('Error al registrar pago: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al registrar pago: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -65,8 +78,8 @@ export default function PayrollReport() {
 
   const empName = employees.find(e => e.id === Number(selectedEmp))?.name || '';
 
-  const usedSheetNames = new Set();
-  const safeSheetName = (name) => {
+  const usedSheetNames = new Set<string>();
+  const safeSheetName = (name: string) => {
     let base = name.replace(/[\\/*\[\]:?]/g, '-').substring(0, 31);
     let finalName = base;
     let counter = 1;
@@ -79,7 +92,7 @@ export default function PayrollReport() {
     return finalName;
   };
 
-  const buildWorkbook = (reports) => {
+  const buildWorkbook = (reports: (PayrollReportData & { employee_name?: string })[]) => {
     const wb = XLSX.utils.book_new();
 
     const summaryData = reports.map(r => ({
@@ -164,7 +177,8 @@ export default function PayrollReport() {
       XLSX.writeFile(wb, filename);
       showSuccess('Reporte general exportado');
     } catch (err) {
-      showError('Error al generar reporte general: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al generar reporte general: ' + msg);
       console.error(err);
     }
     setExportingAll(false);
@@ -184,8 +198,8 @@ export default function PayrollReport() {
         <div className="form-row">
           <div className="form-group">
             <label>Empleado</label>
-            <select value={selectedEmp} onChange={e => setSelectedEmp(e.target.value)}>
-              <option value="">Seleccione...</option>
+            <select value={selectedEmp} onChange={e => setSelectedEmp(e.target.value)} disabled={loading}>
+              <option value="">{loading ? 'Cargando empleados...' : 'Seleccione...'}</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
@@ -328,7 +342,7 @@ export default function PayrollReport() {
   );
 }
 
-function calcHours(entry, exit) {
+function calcHours(entry: string, exit: string): string {
   const [eh, em] = entry.split(':').map(Number);
   const [xh, xm] = exit.split(':').map(Number);
   let entryMin = eh * 60 + em;

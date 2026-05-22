@@ -1,9 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import type { Employee, WorkRecord } from '../types/api';
+
+interface Message {
+  type: 'error' | 'success';
+  text: string;
+}
+
+interface WorkRecordForm {
+  employee_id: string;
+  date: string;
+  is_direct_entry: boolean;
+  entry_time: string;
+  exit_time: string;
+  direct_hours: string;
+  notes: string;
+}
 
 export default function WorkRecords() {
-  const [records, setRecords] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [form, setForm] = useState({
+  const [records, setRecords] = useState<WorkRecord[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [form, setForm] = useState<WorkRecordForm>({
     employee_id: '', date: new Date().toISOString().split('T')[0],
     is_direct_entry: false, entry_time: '08:00', exit_time: '17:00',
     direct_hours: '8', notes: '',
@@ -12,13 +28,14 @@ export default function WorkRecords() {
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<Message | null>(null);
 
-  const showError = (msg) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg) => setMessage({ type: 'success', text: msg });
+  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
+  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
   const clearMessage = () => setMessage(null);
 
   const load = async () => {
+    setLoading(true);
     clearMessage();
     try {
       if (window.api) {
@@ -32,8 +49,11 @@ export default function WorkRecords() {
         }
       }
     } catch (err) {
-      showError('Error al cargar registros: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al cargar registros: ' + msg);
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,10 +65,10 @@ export default function WorkRecords() {
     setLoading(true);
     clearMessage();
     try {
-      const record = {
+      const record: Omit<WorkRecord, 'id' | 'created_at'> = {
         employee_id: Number(form.employee_id),
         date: form.date,
-        is_direct_entry: form.is_direct_entry,
+        is_direct_entry: form.is_direct_entry ? 1 : 0,
         entry_time: form.is_direct_entry ? null : form.entry_time,
         exit_time: form.is_direct_entry ? null : form.exit_time,
         direct_hours: form.is_direct_entry ? parseFloat(form.direct_hours) : null,
@@ -59,14 +79,15 @@ export default function WorkRecords() {
       setForm(f => ({ ...f, employee_id: '', notes: '' }));
       await load();
     } catch (err) {
-      showError('Error al guardar registro: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al guardar registro: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     if (!confirm('¿Eliminar este registro?')) return;
     setLoading(true);
     clearMessage();
@@ -75,14 +96,15 @@ export default function WorkRecords() {
       showSuccess('Registro eliminado');
       await load();
     } catch (err) {
-      showError('Error al eliminar: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al eliminar: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const empName = (id) => employees.find(e => e.id === id)?.name || `ID:${id}`;
+  const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
 
   return (
     <div>
@@ -167,7 +189,12 @@ export default function WorkRecords() {
         </div>
       </div>
       <div className="card">
-        {records.length === 0 ? (
+        {loading && records.length === 0 ? (
+          <div className="empty-state">
+            <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
+            <p style={{ marginTop: 12 }}>Cargando registros...</p>
+          </div>
+        ) : records.length === 0 ? (
           <div className="empty-state"><p>No hay registros de horas</p></div>
         ) : (
           <table>
@@ -206,7 +233,7 @@ export default function WorkRecords() {
   );
 }
 
-function calcHours(entry, exit) {
+function calcHours(entry: string, exit: string): string {
   const [eh, em] = entry.split(':').map(Number);
   const [xh, xm] = exit.split(':').map(Number);
   let entryMin = eh * 60 + em;

@@ -1,16 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import type { Employee } from '../types/api';
+
+interface Message {
+  type: 'error' | 'success';
+  text: string;
+}
 
 export default function Employees() {
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [newName, setNewName] = useState('');
-  const [editingId, setEditingId] = useState(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<Message | null>(null);
   const [apiReady, setApiReady] = useState(false);
 
-  const showError = (msg) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg) => setMessage({ type: 'success', text: msg });
+  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
+  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
   const clearMessage = () => setMessage(null);
 
   useEffect(() => {
@@ -20,15 +26,20 @@ export default function Employees() {
     }
     setApiReady(true);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = async () => {
+    setLoading(true);
     clearMessage();
     try {
       setEmployees(await window.api.getEmployees());
     } catch (err) {
-      showError('Error al cargar empleados: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al cargar empleados: ' + msg);
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,19 +53,20 @@ export default function Employees() {
       setNewName('');
       await load();
     } catch (err) {
-      showError('Error al agregar empleado: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al agregar empleado: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const startEdit = (emp) => {
+  const startEdit = (emp: Employee) => {
     setEditingId(emp.id);
     setEditName(emp.name);
   };
 
-  const saveEdit = async (id) => {
+  const saveEdit = async (id: number) => {
     if (!editName.trim()) return;
     setLoading(true);
     clearMessage();
@@ -64,14 +76,15 @@ export default function Employees() {
       setEditingId(null);
       await load();
     } catch (err) {
-      showError('Error al actualizar: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al actualizar: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: number) => {
     if (!confirm('¿Desactivar este empleado?')) return;
     setLoading(true);
     clearMessage();
@@ -80,7 +93,8 @@ export default function Employees() {
       showSuccess('Empleado desactivado');
       await load();
     } catch (err) {
-      showError('Error al desactivar: ' + (err.message || 'Desconocido'));
+      const msg = err instanceof Error ? err.message : 'Desconocido';
+      showError('Error al desactivar: ' + msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -126,7 +140,12 @@ export default function Employees() {
         </div>
       </div>
       <div className="card">
-        {employees.length === 0 ? (
+        {loading && employees.length === 0 ? (
+          <div className="empty-state">
+            <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
+            <p style={{ marginTop: 12 }}>Cargando empleados...</p>
+          </div>
+        ) : employees.length === 0 ? (
           <div className="empty-state"><p>No hay empleados registrados</p></div>
         ) : (
           <table>

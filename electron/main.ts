@@ -1,7 +1,8 @@
-const { app, BrowserWindow } = require('electron');
-const path = require('path');
+import { app, BrowserWindow, ipcMain } from 'electron';
+import path from 'path';
+import { initUpdater, checkForUpdates, quitAndInstall } from './updater';
 
-let mainWindow;
+let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -14,7 +15,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    title: 'Valentini Assistant - Control de Horas',
+    title: 'NominaCore - Control de Horas',
   });
 
   mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
@@ -22,6 +23,8 @@ function createWindow() {
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
+
+  initUpdater(mainWindow);
 }
 
 app.whenReady().then(() => {
@@ -34,4 +37,13 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// IPC handlers for auto-updater
+ipcMain.on('check-for-updates', () => {
+  checkForUpdates();
+});
+
+ipcMain.on('quit-and-install', () => {
+  quitAndInstall();
 });

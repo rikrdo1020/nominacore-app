@@ -1,16 +1,19 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
-const { app } = require('electron');
+import initSqlJs from 'sql.js';
+import fs from 'fs';
+import path from 'path';
+import { app } from 'electron';
 
-let db = null;
-let SQL = null;
+import type { Database as SqlJsDatabase } from 'sql.js';
+
+let db: SqlJsDatabase | null = null;
+let SQL: typeof SqlJsDatabase | null = null;
 const DB_PATH = path.join(app.getPath('userData'), 'valentini.db');
 
-function queryAll(sql, params = []) {
+function queryAll(sql: string, params: unknown[] = []): Record<string, unknown>[] {
+  if (!db) throw new Error('Database not initialized');
   const stmt = db.prepare(sql);
   if (params.length > 0) stmt.bind(params);
-  const rows = [];
+  const rows: Record<string, unknown>[] = [];
   while (stmt.step()) {
     rows.push(stmt.getAsObject());
   }
@@ -18,31 +21,36 @@ function queryAll(sql, params = []) {
   return rows;
 }
 
-async function initDatabase() {
+export async function initDatabase(): Promise<SqlJsDatabase> {
   SQL = await initSqlJs();
   loadOrCreateDatabase();
   createTables();
   seedDefaultRates();
+  if (!db) throw new Error('Failed to initialize database');
   return db;
 }
 
-function loadOrCreateDatabase() {
+function loadOrCreateDatabase(): void {
+  if (!SQL) throw new Error('SQL.js not loaded');
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(buffer);
+    db = new SQL(buffer);
   } else {
-    db = new SQL.Database();
+    db = new SQL();
     saveDatabase();
   }
 }
 
-function saveDatabase() {
+function saveDatabase(): void {
+  if (!db) throw new Error('Database not initialized');
   const data = db.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(DB_PATH, buffer);
 }
 
-function createTables() {
+function createTables(): void {
+  if (!db) throw new Error('Database not initialized');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS employees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,9 +132,10 @@ function createTables() {
   saveDatabase();
 }
 
-function seedDefaultRates() {
+function seedDefaultRates(): void {
+  if (!db) throw new Error('Database not initialized');
   const count = db.exec("SELECT COUNT(*) as c FROM rate_rules");
-  if (count.length > 0 && count[0].values[0][0] > 0) return;
+  if (count.length > 0 && (count[0].values[0][0] as number) > 0) return;
 
   const days = [
     { dow: 0, name: 'Lunes', max: 8, reg: 2.50, ot: 3.00, lunch: 0.5 },
@@ -149,36 +158,41 @@ function seedDefaultRates() {
 }
 
 // === CRUD Employees ===
-function getEmployees() {
+export function getEmployees(): Record<string, unknown>[] {
   return queryAll("SELECT id, name, is_active, created_at FROM employees WHERE is_active = 1 ORDER BY name");
 }
 
-function getAllEmployees() {
+export function getAllEmployees(): Record<string, unknown>[] {
   return queryAll("SELECT id, name, is_active, created_at FROM employees ORDER BY name");
 }
 
-function addEmployee(name) {
+export function addEmployee(name: string): number {
+  if (!db) throw new Error('Database not initialized');
   db.run("INSERT INTO employees (name) VALUES (?)", [name]);
   saveDatabase();
-  return db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+  const result = db.exec("SELECT last_insert_rowid()")[0];
+  return result.values[0][0] as number;
 }
 
-function updateEmployee(id, name) {
+export function updateEmployee(id: number, name: string): void {
+  if (!db) throw new Error('Database not initialized');
   db.run("UPDATE employees SET name = ? WHERE id = ?", [name, id]);
   saveDatabase();
 }
 
-function deleteEmployee(id) {
+export function deleteEmployee(id: number): void {
+  if (!db) throw new Error('Database not initialized');
   db.run("UPDATE employees SET is_active = 0 WHERE id = ?", [id]);
   saveDatabase();
 }
 
 // === CRUD Rate Rules ===
-function getRateRules() {
+export function getRateRules(): Record<string, unknown>[] {
   return queryAll("SELECT * FROM rate_rules ORDER BY day_of_week");
 }
 
-function updateRateRule(id, maxReg, regRate, otRate, lunchDuration) {
+export function updateRateRule(id: number, maxReg: number, regRate: number, otRate: number, lunchDuration: number): void {
+  if (!db) throw new Error('Database not initialized');
   db.run(
     "UPDATE rate_rules SET max_regular_hours = ?, regular_rate = ?, overtime_rate = ?, lunch_duration = ? WHERE id = ?",
     [maxReg, regRate, otRate, lunchDuration, id]
@@ -187,9 +201,9 @@ function updateRateRule(id, maxReg, regRate, otRate, lunchDuration) {
 }
 
 // === CRUD Work Records ===
-function getWorkRecords(employeeId, startDate, endDate) {
+export function getWorkRecords(employeeId: number | null, startDate?: string, endDate?: string): Record<string, unknown>[] {
   let query = "SELECT * FROM work_records WHERE 1=1";
-  const params = [];
+  const params: unknown[] = [];
   if (employeeId) { query += " AND employee_id = ?"; params.push(employeeId); }
   if (startDate) { query += " AND date >= ?"; params.push(startDate); }
   if (endDate) { query += " AND date <= ?"; params.push(endDate); }
@@ -197,30 +211,43 @@ function getWorkRecords(employeeId, startDate, endDate) {
   return queryAll(query, params);
 }
 
-function getWorkRecordsAll(startDate, endDate) {
+export function getWorkRecordsAll(startDate?: string, endDate?: string): Record<string, unknown>[] {
   let query = `
     SELECT wr.*, e.name as employee_name
     FROM work_records wr
     JOIN employees e ON e.id = wr.employee_id
     WHERE 1=1
   `;
-  const params = [];
+  const params: unknown[] = [];
   if (startDate) { query += " AND wr.date >= ?"; params.push(startDate); }
   if (endDate) { query += " AND wr.date <= ?"; params.push(endDate); }
   query += " ORDER BY wr.date DESC, e.name";
   return queryAll(query, params);
 }
 
-function addWorkRecord(record) {
+interface WorkRecordInput {
+  employee_id: number;
+  date: string;
+  entry_time: string | null;
+  exit_time: string | null;
+  direct_hours: number | null;
+  is_direct_entry: number;
+  notes: string | null;
+}
+
+export function addWorkRecord(record: WorkRecordInput): number {
+  if (!db) throw new Error('Database not initialized');
   db.run(
     "INSERT INTO work_records (employee_id, date, entry_time, exit_time, direct_hours, is_direct_entry, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [record.employee_id, record.date, record.entry_time || null, record.exit_time || null, record.direct_hours || null, record.is_direct_entry ? 1 : 0, record.notes || null]
   );
   saveDatabase();
-  return db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+  const result = db.exec("SELECT last_insert_rowid()")[0];
+  return result.values[0][0] as number;
 }
 
-function updateWorkRecord(id, record) {
+export function updateWorkRecord(id: number, record: Partial<WorkRecordInput>): void {
+  if (!db) throw new Error('Database not initialized');
   db.run(
     "UPDATE work_records SET entry_time = ?, exit_time = ?, direct_hours = ?, is_direct_entry = ?, notes = ? WHERE id = ?",
     [record.entry_time || null, record.exit_time || null, record.direct_hours || null, record.is_direct_entry ? 1 : 0, record.notes || null, id]
@@ -228,15 +255,16 @@ function updateWorkRecord(id, record) {
   saveDatabase();
 }
 
-function deleteWorkRecord(id) {
+export function deleteWorkRecord(id: number): void {
+  if (!db) throw new Error('Database not initialized');
   db.run("DELETE FROM work_records WHERE id = ?", [id]);
   saveDatabase();
 }
 
 // === CRUD Deductions ===
-function getDeductions(employeeId, startDate, endDate) {
+export function getDeductions(employeeId: number | null, startDate?: string, endDate?: string): Record<string, unknown>[] {
   let query = "SELECT d.*, e.name as employee_name FROM deductions d JOIN employees e ON e.id = d.employee_id WHERE 1=1";
-  const params = [];
+  const params: unknown[] = [];
   if (employeeId) { query += " AND d.employee_id = ?"; params.push(employeeId); }
   if (startDate) { query += " AND d.date >= ?"; params.push(startDate); }
   if (endDate) { query += " AND d.date <= ?"; params.push(endDate); }
@@ -244,22 +272,48 @@ function getDeductions(employeeId, startDate, endDate) {
   return queryAll(query, params);
 }
 
-function addDeduction(ded) {
+interface DeductionInput {
+  employee_id: number;
+  date: string;
+  type: string;
+  amount: number;
+  description: string | null;
+}
+
+export function addDeduction(ded: DeductionInput): number {
+  if (!db) throw new Error('Database not initialized');
   db.run(
     "INSERT INTO deductions (employee_id, date, type, amount, description) VALUES (?, ?, ?, ?, ?)",
     [ded.employee_id, ded.date, ded.type, ded.amount, ded.description || null]
   );
   saveDatabase();
-  return db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+  const result = db.exec("SELECT last_insert_rowid()")[0];
+  return result.values[0][0] as number;
 }
 
-function deleteDeduction(id) {
+export function deleteDeduction(id: number): void {
+  if (!db) throw new Error('Database not initialized');
   db.run("DELETE FROM deductions WHERE id = ?", [id]);
   saveDatabase();
 }
 
 // === Payroll Calculation ===
-function calculatePayroll(employeeId, startDate, endDate) {
+interface PayrollCalcResult {
+  employee_id: number;
+  period_start: string;
+  period_end: string;
+  work_records: Record<string, unknown>[];
+  deductions: Record<string, unknown>[];
+  total_regular_hours: number;
+  total_overtime_hours: number;
+  regular_pay: number;
+  overtime_pay: number;
+  total_deductions: number;
+  gross_pay: number;
+  net_pay: number;
+}
+
+export function calculatePayroll(employeeId: number, startDate: string, endDate: string): PayrollCalcResult {
   const rateRules = getRateRules();
   const workRecords = getWorkRecords(employeeId, startDate, endDate);
   const deductions = getDeductions(employeeId, startDate, endDate);
@@ -270,17 +324,17 @@ function calculatePayroll(employeeId, startDate, endDate) {
   let totalOvertimePay = 0;
 
   for (const wr of workRecords) {
-    const d = new Date(wr.date + 'T12:00:00');
+    const d = new Date((wr.date as string) + 'T12:00:00');
     const dayOfWeek = d.getDay();
     const dayOfWeekAdjusted = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday=0 ... Sunday=6
     const rule = rateRules.find(r => r.day_of_week === dayOfWeekAdjusted);
 
     let hoursWorked = 0;
     if (wr.is_direct_entry && wr.direct_hours) {
-      hoursWorked = wr.direct_hours;
+      hoursWorked = wr.direct_hours as number;
     } else if (wr.entry_time && wr.exit_time) {
-      const [eh, em] = wr.entry_time.split(':').map(Number);
-      const [xh, xm] = wr.exit_time.split(':').map(Number);
+      const [eh, em] = (wr.entry_time as string).split(':').map(Number);
+      const [xh, xm] = (wr.exit_time as string).split(':').map(Number);
       let entryMin = eh * 60 + em;
       let exitMin = xh * 60 + xm;
       if (exitMin <= entryMin) exitMin += 24 * 60;
@@ -288,10 +342,10 @@ function calculatePayroll(employeeId, startDate, endDate) {
     }
 
     if (rule) {
-      const maxReg = rule.max_regular_hours;
-      const regRate = rule.regular_rate;
-      const otRate = rule.overtime_rate;
-      const lunchDuration = rule.lunch_duration || 0;
+      const maxReg = rule.max_regular_hours as number;
+      const regRate = rule.regular_rate as number;
+      const otRate = rule.overtime_rate as number;
+      const lunchDuration = (rule.lunch_duration as number) || 0;
       const netHours = Math.max(0, hoursWorked - lunchDuration);
 
       if (maxReg > 0 && netHours > maxReg) {
@@ -306,7 +360,7 @@ function calculatePayroll(employeeId, startDate, endDate) {
     }
   }
 
-  const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
+  const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount as number), 0);
   const grossPay = totalRegularPay + totalOvertimePay;
   const netPay = grossPay - totalDeductions;
 
@@ -326,58 +380,36 @@ function calculatePayroll(employeeId, startDate, endDate) {
   };
 }
 
-function calculatePayrollAll(startDate, endDate) {
+export function calculatePayrollAll(startDate: string, endDate: string): (PayrollCalcResult & { employee_name?: string })[] {
   const employees = getEmployees();
-  const results = [];
+  const results: (PayrollCalcResult & { employee_name?: string })[] = [];
   for (const emp of employees) {
-    const calc = calculatePayroll(emp.id, startDate, endDate);
+    const calc = calculatePayroll(emp.id as number, startDate, endDate);
     results.push({
-      employee_id: emp.id,
-      employee_name: emp.name,
-      ...calc
+      ...calc,
+      employee_id: emp.id as number,
+      employee_name: emp.name as string,
     });
   }
   return results;
 }
 
-function savePayroll(employeeId, startDate, endDate, paidAt) {
+export function savePayroll(employeeId: number, startDate: string, endDate: string, paidAt: string): number {
+  if (!db) throw new Error('Database not initialized');
   const calc = calculatePayroll(employeeId, startDate, endDate);
   db.run(
     "INSERT INTO payroll (employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, regular_pay, overtime_pay, total_deductions, net_pay, paid_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [employeeId, startDate, endDate, calc.total_regular_hours, calc.total_overtime_hours, calc.regular_pay, calc.overtime_pay, calc.total_deductions, calc.net_pay, paidAt]
   );
   saveDatabase();
-  return db.exec("SELECT last_insert_rowid()")[0].values[0][0];
+  const result = db.exec("SELECT last_insert_rowid()")[0];
+  return result.values[0][0] as number;
 }
 
-function getPayrollHistory(employeeId) {
+export function getPayrollHistory(employeeId: number | null): Record<string, unknown>[] {
   let query = "SELECT * FROM payroll WHERE 1=1";
-  const params = [];
+  const params: unknown[] = [];
   if (employeeId) { query += " AND employee_id = ?"; params.push(employeeId); }
   query += " ORDER BY period_start DESC";
   return queryAll(query, params);
 }
-
-module.exports = {
-  initDatabase,
-  saveDatabase,
-  getEmployees,
-  getAllEmployees,
-  addEmployee,
-  updateEmployee,
-  deleteEmployee,
-  getRateRules,
-  updateRateRule,
-  getWorkRecords,
-  getWorkRecordsAll,
-  addWorkRecord,
-  updateWorkRecord,
-  deleteWorkRecord,
-  getDeductions,
-  addDeduction,
-  deleteDeduction,
-  calculatePayroll,
-  calculatePayrollAll,
-  savePayroll,
-  getPayrollHistory,
-};
