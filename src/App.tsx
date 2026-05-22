@@ -29,9 +29,7 @@ export default function App() {
           <li><NavLink to="/deductions" className={({ isActive }) => isActive ? 'active' : ''}>Descuentos</NavLink></li>
           <li><NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''}>Reporte de Pago</NavLink></li>
         </ul>
-        <div className="sidebar-footer">
-          <span className="mode-badge">Servidor Local</span>
-        </div>
+
       </nav>
       <main className="main-content">
         <Routes>
