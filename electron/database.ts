@@ -391,12 +391,12 @@ export function calculatePayroll(employeeId: number, startDate: string, endDate:
 
     dailyBreakdown.push({
       date: dateStr,
-      regular_hours: Math.round(regHours * 100) / 100,
-      overtime_hours: Math.round(otHours * 100) / 100,
-      regular_pay: Math.round(regPay * 100) / 100,
-      overtime_pay: Math.round(otPay * 100) / 100,
-      daily_total: Math.round((regPay + otPay) * 100) / 100,
-      deductions: Math.round((deductionsByDate.get(dateStr) || 0) * 100) / 100,
+      regular_hours: regHours,
+      overtime_hours: otHours,
+      regular_pay: regPay,
+      overtime_pay: otPay,
+      daily_total: regPay + otPay,
+      deductions: deductionsByDate.get(dateStr) || 0,
     });
   }
 
@@ -411,13 +411,13 @@ export function calculatePayroll(employeeId: number, startDate: string, endDate:
     work_records: workRecords,
     deductions: deductions,
     daily_breakdown: dailyBreakdown,
-    total_regular_hours: Math.round(totalRegularHours * 100) / 100,
-    total_overtime_hours: Math.round(totalOvertimeHours * 100) / 100,
-    regular_pay: Math.round(totalRegularPay * 100) / 100,
-    overtime_pay: Math.round(totalOvertimePay * 100) / 100,
-    total_deductions: Math.round(totalDeductions * 100) / 100,
-    gross_pay: Math.round(grossPay * 100) / 100,
-    net_pay: Math.round(netPay * 100) / 100,
+    total_regular_hours: totalRegularHours,
+    total_overtime_hours: totalOvertimeHours,
+    regular_pay: totalRegularPay,
+    overtime_pay: totalOvertimePay,
+    total_deductions: totalDeductions,
+    gross_pay: grossPay,
+    net_pay: netPay,
   };
 }
 

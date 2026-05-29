@@ -181,7 +181,7 @@ export default function PayrollReport() {
           'Pago Extra': db.overtime_pay,
           'Total Día': db.daily_total,
           Descuentos: db.deductions,
-          'Neto Día': Math.round((db.daily_total - db.deductions) * 100) / 100,
+          'Neto Día': db.daily_total - db.deductions,
         }));
         const wsBreakdown = XLSX.utils.json_to_sheet(breakdownData);
         XLSX.utils.book_append_sheet(wb, wsBreakdown, safeSheetName(`${fullName} - Desglose`));
@@ -233,7 +233,7 @@ export default function PayrollReport() {
       'Pago Extra': db.overtime_pay,
       'Total Día': db.daily_total,
       Descuentos: db.deductions,
-      'Neto Día': Math.round((db.daily_total - db.deductions) * 100) / 100,
+      'Neto Día': db.daily_total - db.deductions,
     }));
     const ws = XLSX.utils.json_to_sheet(breakdownData);
     XLSX.utils.book_append_sheet(wb, ws, 'Desglose Diario');
