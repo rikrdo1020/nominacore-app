@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Employee, PayrollReportData } from '../types/api';
+import { calcHours } from '../utils/time';
 
 interface Message {
   type: 'error' | 'success';
@@ -342,11 +343,3 @@ export default function PayrollReport() {
   );
 }
 
-function calcHours(entry: string, exit: string): string {
-  const [eh, em] = entry.split(':').map(Number);
-  const [xh, xm] = exit.split(':').map(Number);
-  let entryMin = eh * 60 + em;
-  let exitMin = xh * 60 + xm;
-  if (exitMin <= entryMin) exitMin += 24 * 60;
-  return ((exitMin - entryMin) / 60).toFixed(2);
-}

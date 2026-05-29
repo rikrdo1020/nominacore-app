@@ -119,7 +119,7 @@ try {
         entryTime: record.entry_time,
         exitTime: record.exit_time,
         directHours: record.direct_hours,
-        isDirectEntry: record.is_direct_entry,
+        isDirectEntry: !!record.is_direct_entry,
         notes: record.notes,
       }),
     updateWorkRecord: (id: number, record: {
@@ -133,7 +133,7 @@ try {
         entryTime: record.entry_time,
         exitTime: record.exit_time,
         directHours: record.direct_hours,
-        isDirectEntry: record.is_direct_entry,
+        isDirectEntry: !!record.is_direct_entry,
         notes: record.notes,
       }),
     deleteWorkRecord: (id: number) => apiDelete(`/work-records/${id}`),
