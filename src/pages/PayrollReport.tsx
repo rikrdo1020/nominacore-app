@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import type { Employee, PayrollReportData } from '../types/api';
 import { calcHours } from '../utils/time';
@@ -7,6 +7,14 @@ interface Message {
   type: 'error' | 'success';
   text: string;
 }
+
+type ActionOption =
+  | ''
+  | 'print'
+  | 'export-individual'
+  | 'export-all'
+  | 'export-breakdown'
+  | 'register-payment';
 
 export default function PayrollReport() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -19,6 +27,9 @@ export default function PayrollReport() {
   const [exportingAll, setExportingAll] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+  const [actionOpen, setActionOpen] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<ActionOption>('');
+  const actionRef = useRef<HTMLDivElement>(null);
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -38,6 +49,17 @@ export default function PayrollReport() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (actionRef.current && !actionRef.current.contains(e.target as Node)) {
+        setActionOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const generate = async () => {
@@ -149,6 +171,21 @@ export default function PayrollReport() {
         const wsDed = XLSX.utils.json_to_sheet(dedData);
         XLSX.utils.book_append_sheet(wb, wsDed, safeSheetName(`${fullName} - Descuentos`));
       }
+
+      if (r.daily_breakdown && r.daily_breakdown.length > 0) {
+        const breakdownData = r.daily_breakdown.map(db => ({
+          Fecha: db.date,
+          'Horas Regulares': db.regular_hours,
+          'Horas Extra': db.overtime_hours,
+          'Pago Regular': db.regular_pay,
+          'Pago Extra': db.overtime_pay,
+          'Total Día': db.daily_total,
+          Descuentos: db.deductions,
+          'Neto Día': Math.round((db.daily_total - db.deductions) * 100) / 100,
+        }));
+        const wsBreakdown = XLSX.utils.json_to_sheet(breakdownData);
+        XLSX.utils.book_append_sheet(wb, wsBreakdown, safeSheetName(`${fullName} - Desglose`));
+      }
     });
 
     return wb;
@@ -185,6 +222,60 @@ export default function PayrollReport() {
     setExportingAll(false);
   };
 
+  const exportBreakdownOnly = () => {
+    if (!report || !report.daily_breakdown || report.daily_breakdown.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const breakdownData = report.daily_breakdown.map(db => ({
+      Fecha: db.date,
+      'Horas Regulares': db.regular_hours,
+      'Horas Extra': db.overtime_hours,
+      'Pago Regular': db.regular_pay,
+      'Pago Extra': db.overtime_pay,
+      'Total Día': db.daily_total,
+      Descuentos: db.deductions,
+      'Neto Día': Math.round((db.daily_total - db.deductions) * 100) / 100,
+    }));
+    const ws = XLSX.utils.json_to_sheet(breakdownData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Desglose Diario');
+    const filename = `Desglose_${empName.replace(/\s+/g, '_')}_${startDate}_al_${endDate}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
+  const handleActionChange = (action: ActionOption) => {
+    setSelectedAction(action);
+    setActionOpen(false);
+    if (!action) return;
+
+    switch (action) {
+      case 'print':
+        print();
+        break;
+      case 'export-individual':
+        exportIndividual();
+        break;
+      case 'export-all':
+        exportAll();
+        break;
+      case 'export-breakdown':
+        exportBreakdownOnly();
+        break;
+      case 'register-payment':
+        pay();
+        break;
+    }
+    // Reset after a brief delay so the label returns to "Acciones"
+    setTimeout(() => setSelectedAction(''), 300);
+  };
+
+  const actionLabels: Record<ActionOption, string> = {
+    '': 'Acciones',
+    'print': 'Imprimir',
+    'export-individual': 'Exportar Excel Individual',
+    'export-all': 'Exportar Excel Todos',
+    'export-breakdown': 'Descargar Desglose',
+    'register-payment': 'Registrar Pago',
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -215,15 +306,93 @@ export default function PayrollReport() {
           <button className="btn btn-primary" onClick={generate} disabled={loading}>
             {loading ? <span className="spinner" /> : 'Generar Reporte'}
           </button>
-          {report && <button className="btn btn-secondary" onClick={print}>Imprimir</button>}
-          {report && (
-            <button className="btn btn-secondary" onClick={exportIndividual}>
-              Exportar Excel
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={exportAll} disabled={exportingAll}>
-            {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
-          </button>
+
+          <div className="form-group" style={{ position: 'relative', minWidth: 220 }} ref={actionRef}>
+            <label>Opciones</label>
+            <div
+              className="custom-dropdown"
+              onClick={() => setActionOpen(!actionOpen)}
+              style={{
+                border: '1px solid #ccc',
+                borderRadius: 4,
+                padding: '8px 12px',
+                cursor: 'pointer',
+                background: '#fff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                userSelect: 'none',
+              }}
+            >
+              <span>{actionLabels[selectedAction || '']}</span>
+              <span style={{ transform: actionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+            </div>
+            {actionOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: '#fff',
+                border: '1px solid #ccc',
+                borderRadius: 4,
+                marginTop: 4,
+                zIndex: 10,
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+              }}>
+                {report && (
+                  <>
+                    <div
+                      className="dropdown-item"
+                      onClick={() => handleActionChange('print')}
+                      style={{ padding: '8px 12px', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    >
+                      Imprimir
+                    </div>
+                    <div
+                      className="dropdown-item"
+                      onClick={() => handleActionChange('export-individual')}
+                      style={{ padding: '8px 12px', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    >
+                      Exportar Excel Individual
+                    </div>
+                    <div
+                      className="dropdown-item"
+                      onClick={() => handleActionChange('export-breakdown')}
+                      style={{ padding: '8px 12px', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    >
+                      Descargar Desglose
+                    </div>
+                    <div
+                      className="dropdown-item"
+                      onClick={() => handleActionChange('register-payment')}
+                      style={{ padding: '8px 12px', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    >
+                      Registrar Pago
+                    </div>
+                    <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
+                  </>
+                )}
+                <div
+                  className="dropdown-item"
+                  onClick={() => handleActionChange('export-all')}
+                  style={{ padding: '8px 12px', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                >
+                  {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -265,11 +434,51 @@ export default function PayrollReport() {
                 <div className="value positive" style={{ color: '#2ecc71' }}>${report.net_pay.toFixed(2)}</div>
               </div>
             </div>
-
-            <button className="btn btn-success" onClick={pay} style={{ marginTop: 12 }} disabled={loading}>
-              {loading ? <span className="spinner" /> : 'Registrar Pago'}
-            </button>
           </div>
+
+          {report.daily_breakdown && report.daily_breakdown.length > 0 && (
+            <div className="card">
+              <h3 style={{ marginBottom: 12 }}>Desglose Diario</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Horas Regulares</th>
+                    <th>Horas Extra</th>
+                    <th>Pago Regular</th>
+                    <th>Pago Extra</th>
+                    <th>Total Día</th>
+                    <th>Descuentos</th>
+                    <th>Neto Día</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.daily_breakdown.map((db, idx) => (
+                    <tr key={idx}>
+                      <td>{db.date}</td>
+                      <td>{db.regular_hours.toFixed(2)}</td>
+                      <td>{db.overtime_hours.toFixed(2)}</td>
+                      <td>${db.regular_pay.toFixed(2)}</td>
+                      <td>${db.overtime_pay.toFixed(2)}</td>
+                      <td>${db.daily_total.toFixed(2)}</td>
+                      <td>${db.deductions.toFixed(2)}</td>
+                      <td style={{ fontWeight: 700 }}>${(db.daily_total - db.deductions).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ fontWeight: 700, background: '#f9f9f9' }}>
+                    <td>Totales</td>
+                    <td>{report.total_regular_hours.toFixed(2)}</td>
+                    <td>{report.total_overtime_hours.toFixed(2)}</td>
+                    <td>${report.regular_pay.toFixed(2)}</td>
+                    <td>${report.overtime_pay.toFixed(2)}</td>
+                    <td>${report.gross_pay.toFixed(2)}</td>
+                    <td>${report.total_deductions.toFixed(2)}</td>
+                    <td>${report.net_pay.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {report.work_records.length > 0 && (
             <div className="card">
@@ -342,4 +551,3 @@ export default function PayrollReport() {
     </div>
   );
 }
-

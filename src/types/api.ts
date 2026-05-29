@@ -40,12 +40,23 @@ export interface Deduction {
   employee_name?: string;
 }
 
+export interface DailyBreakdown {
+  date: string;
+  regular_hours: number;
+  overtime_hours: number;
+  regular_pay: number;
+  overtime_pay: number;
+  daily_total: number;
+  deductions: number;
+}
+
 export interface PayrollReportData {
   employee_id: number;
   period_start: string;
   period_end: string;
   work_records: WorkRecord[];
   deductions: Deduction[];
+  daily_breakdown: DailyBreakdown[];
   total_regular_hours: number;
   total_overtime_hours: number;
   regular_pay: number;
