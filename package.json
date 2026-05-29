@@ -1,6 +1,6 @@
 {
   "name": "nominacore",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Control de horas y pagos de empleados",
   "author": "NominaCore",
   "main": "electron-dist/main.js",
