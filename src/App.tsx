@@ -31,7 +31,9 @@ export default function App() {
           <li><NavLink to="/deductions" className={({ isActive }) => isActive ? 'active' : ''}>Descuentos</NavLink></li>
           <li><NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''}>Reporte de Pago</NavLink></li>
         </ul>
-
+        <div className="app-version" style={{ marginTop: 'auto', padding: '12px 16px', fontSize: 12, color: '#888', borderTop: '1px solid #eee' }}>
+          v{window.api.appVersion}
+        </div>
       </nav>
       <main className="main-content">
         <Routes>

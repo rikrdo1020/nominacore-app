@@ -1,9 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import path from 'path';
+import fs from 'fs';
 
 // Backend URL - hardcoded for reliability in preload context
 const BACKEND_URL = process.env.VALENTINI_API_URL || 'https://nominacore-api.onrender.com/api';
 
 console.log('[Preload] Starting... URL:', BACKEND_URL);
+
+// Read app version from package.json
+let appVersion = 'unknown';
+try {
+  const pkgPath = path.join(__dirname, '..', 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  appVersion = pkg.version || 'unknown';
+} catch {
+  appVersion = 'unknown';
+}
+console.log('[Preload] App version:', appVersion);
 
 function camelToSnake(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(camelToSnake);
@@ -64,6 +77,8 @@ async function apiDelete(path: string): Promise<unknown> {
 
 try {
   contextBridge.exposeInMainWorld('api', {
+    appVersion,
+
     // Auto-updater
     checkForUpdates: () => ipcRenderer.send('check-for-updates'),
     quitAndInstall: () => ipcRenderer.send('quit-and-install'),

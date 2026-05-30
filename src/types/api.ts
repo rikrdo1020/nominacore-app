@@ -162,6 +162,9 @@ export interface ApiService {
   calculatePayrollAll(workStart: string, workEnd: string, deductionStart: string, deductionEnd: string): Promise<(PayrollReportData & { employee_name?: string })[]>;
   savePayroll(empId: number, start: string, end: string, paidAt: string): Promise<{ id: number }>;
   getPayrollHistory(empId?: number | null): Promise<PayrollHistory[]>;
+
+  // App info
+  appVersion: string;
 }
 
 declare global {
