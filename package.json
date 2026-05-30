@@ -14,7 +14,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "electron .",
     "pack": "vite build && npm run build:electron && electron-builder --dir",
-    "release": "vite build && npm run build:electron && electron-builder --publish always",
+    "release": "node scripts/release.js",
     "vite:dev": "vite",
     "electron:dev": "vite build && npm run build:electron && electron ."
   },

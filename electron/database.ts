@@ -406,6 +406,25 @@ export function calculatePayroll(
     });
   }
 
+  // Agregar días que solo tienen descuentos (sin registro de trabajo)
+  const processedDates = new Set(dailyBreakdown.map(db => db.date));
+  for (const [dateStr, amount] of deductionsByDate.entries()) {
+    if (!processedDates.has(dateStr)) {
+      dailyBreakdown.push({
+        date: dateStr,
+        regular_hours: 0,
+        overtime_hours: 0,
+        regular_pay: 0,
+        overtime_pay: 0,
+        daily_total: 0,
+        deductions: amount,
+      });
+    }
+  }
+
+  // Ordenar desglose por fecha
+  dailyBreakdown.sort((a, b) => a.date.localeCompare(b.date));
+
   const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount as number), 0);
   const grossPay = totalRegularPay + totalOvertimePay;
   const netPay = grossPay - totalDeductions;
