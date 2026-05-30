@@ -158,8 +158,8 @@ export interface ApiService {
   deleteDeduction(id: number): Promise<{ success: boolean }>;
 
   // Payroll
-  calculatePayroll(empId: number, start: string, end: string): Promise<PayrollReportData>;
-  calculatePayrollAll(start: string, end: string): Promise<(PayrollReportData & { employee_name?: string })[]>;
+  calculatePayroll(empId: number, workStart: string, workEnd: string, deductionStart: string, deductionEnd: string): Promise<PayrollReportData>;
+  calculatePayrollAll(workStart: string, workEnd: string, deductionStart: string, deductionEnd: string): Promise<(PayrollReportData & { employee_name?: string })[]>;
   savePayroll(empId: number, start: string, end: string, paidAt: string): Promise<{ id: number }>;
   getPayrollHistory(empId?: number | null): Promise<PayrollHistory[]>;
 }

@@ -74,12 +74,23 @@ export function startServer(port = 3456) {
 
   // Payroll
   app.get('/api/payroll/calculate', (req: Request, res: Response) => {
-    const { employee_id, start_date, end_date } = req.query;
-    res.json(db.calculatePayroll(Number(employee_id), start_date as string, end_date as string));
+    const { employee_id, work_start_date, work_end_date, deduction_start_date, deduction_end_date } = req.query;
+    res.json(db.calculatePayroll(
+      Number(employee_id),
+      work_start_date as string,
+      work_end_date as string,
+      deduction_start_date as string,
+      deduction_end_date as string
+    ));
   });
   app.get('/api/payroll/calculate-all', (req: Request, res: Response) => {
-    const { start_date, end_date } = req.query;
-    res.json(db.calculatePayrollAll(start_date as string, end_date as string));
+    const { work_start_date, work_end_date, deduction_start_date, deduction_end_date } = req.query;
+    res.json(db.calculatePayrollAll(
+      work_start_date as string,
+      work_end_date as string,
+      deduction_start_date as string,
+      deduction_end_date as string
+    ));
   });
   app.post('/api/payroll/save', (req: Request, res: Response) => {
     const id = db.savePayroll(req.body.employee_id, req.body.period_start, req.body.period_end, req.body.paid_at);

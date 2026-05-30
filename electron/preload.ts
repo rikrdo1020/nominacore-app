@@ -203,17 +203,21 @@ try {
     deleteDeduction: (id: number) => apiDelete(`/deductions/${id}`),
 
     // Payroll
-    calculatePayroll: (empId: number, start: string, end: string) => {
+    calculatePayroll: (empId: number, workStart: string, workEnd: string, deductionStart: string, deductionEnd: string) => {
       const params = new URLSearchParams();
       params.append('employee_id', String(empId));
-      params.append('start_date', start);
-      params.append('end_date', end);
+      params.append('work_start_date', workStart);
+      params.append('work_end_date', workEnd);
+      params.append('deduction_start_date', deductionStart);
+      params.append('deduction_end_date', deductionEnd);
       return apiGet(`/payroll/calculate?${params.toString()}`);
     },
-    calculatePayrollAll: (start: string, end: string) => {
+    calculatePayrollAll: (workStart: string, workEnd: string, deductionStart: string, deductionEnd: string) => {
       const params = new URLSearchParams();
-      params.append('start_date', start);
-      params.append('end_date', end);
+      params.append('work_start_date', workStart);
+      params.append('work_end_date', workEnd);
+      params.append('deduction_start_date', deductionStart);
+      params.append('deduction_end_date', deductionEnd);
       return apiGet(`/payroll/calculate-all?${params.toString()}`);
     },
     savePayroll: (empId: number, start: string, end: string, paidAt: string) =>

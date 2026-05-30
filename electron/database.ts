@@ -324,10 +324,16 @@ interface PayrollCalcResult {
   net_pay: number;
 }
 
-export function calculatePayroll(employeeId: number, startDate: string, endDate: string): PayrollCalcResult {
+export function calculatePayroll(
+  employeeId: number,
+  workStartDate: string,
+  workEndDate: string,
+  deductionStartDate: string,
+  deductionEndDate: string
+): PayrollCalcResult {
   const rateRules = getRateRules();
-  const workRecords = getWorkRecords(employeeId, startDate, endDate);
-  const deductions = getDeductions(employeeId, startDate, endDate);
+  const workRecords = getWorkRecords(employeeId, workStartDate, workEndDate);
+  const deductions = getDeductions(employeeId, deductionStartDate, deductionEndDate);
 
   // Map deductions by date
   const deductionsByDate = new Map<string, number>();
@@ -404,10 +410,13 @@ export function calculatePayroll(employeeId: number, startDate: string, endDate:
   const grossPay = totalRegularPay + totalOvertimePay;
   const netPay = grossPay - totalDeductions;
 
+  const periodStart = workStartDate < deductionStartDate ? workStartDate : deductionStartDate;
+  const periodEnd = workEndDate > deductionEndDate ? workEndDate : deductionEndDate;
+
   return {
     employee_id: employeeId,
-    period_start: startDate,
-    period_end: endDate,
+    period_start: periodStart,
+    period_end: periodEnd,
     work_records: workRecords,
     deductions: deductions,
     daily_breakdown: dailyBreakdown,
@@ -421,11 +430,16 @@ export function calculatePayroll(employeeId: number, startDate: string, endDate:
   };
 }
 
-export function calculatePayrollAll(startDate: string, endDate: string): (PayrollCalcResult & { employee_name?: string })[] {
+export function calculatePayrollAll(
+  workStartDate: string,
+  workEndDate: string,
+  deductionStartDate: string,
+  deductionEndDate: string
+): (PayrollCalcResult & { employee_name?: string })[] {
   const employees = getEmployees();
   const results: (PayrollCalcResult & { employee_name?: string })[] = [];
   for (const emp of employees) {
-    const calc = calculatePayroll(emp.id as number, startDate, endDate);
+    const calc = calculatePayroll(emp.id as number, workStartDate, workEndDate, deductionStartDate, deductionEndDate);
     results.push({
       ...calc,
       employee_id: emp.id as number,
@@ -437,7 +451,7 @@ export function calculatePayrollAll(startDate: string, endDate: string): (Payrol
 
 export function savePayroll(employeeId: number, startDate: string, endDate: string, paidAt: string): number {
   if (!db) throw new Error('Database not initialized');
-  const calc = calculatePayroll(employeeId, startDate, endDate);
+  const calc = calculatePayroll(employeeId, startDate, endDate, startDate, endDate);
   db.run(
     "INSERT INTO payroll (employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, regular_pay, overtime_pay, total_deductions, net_pay, paid_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [employeeId, startDate, endDate, calc.total_regular_hours, calc.total_overtime_hours, calc.regular_pay, calc.overtime_pay, calc.total_deductions, calc.net_pay, paidAt]

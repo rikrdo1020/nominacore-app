@@ -17,10 +17,14 @@ type ActionOption =
 export default function PayrollReport() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmp, setSelectedEmp] = useState('');
-  const [startDate, setStartDate] = useState(() => {
+  const [workStartDate, setWorkStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [workEndDate, setWorkEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [deductionStartDate, setDeductionStartDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
+  });
+  const [deductionEndDate, setDeductionEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [report, setReport] = useState<PayrollReportData | null>(null);
   const [exportingAll, setExportingAll] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,11 +68,17 @@ export default function PayrollReport() {
   }, []);
 
   const generate = async () => {
-    if (!selectedEmp || !startDate || !endDate) return;
+    if (!selectedEmp || !workStartDate || !workEndDate || !deductionStartDate || !deductionEndDate) return;
     setLoading(true);
     clearMessage();
     try {
-      const result = await window.api.calculatePayroll(Number(selectedEmp), startDate, endDate);
+      const result = await window.api.calculatePayroll(
+        Number(selectedEmp),
+        workStartDate,
+        workEndDate,
+        deductionStartDate,
+        deductionEndDate
+      );
       setReport(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Desconocido';
@@ -288,23 +298,28 @@ export default function PayrollReport() {
     if (!report) return;
     const r = { ...report, employee_name: empName };
     const wb = buildWorkbook([r]);
-    const filename = `Reporte_${empName.replace(/\s+/g, '_')}_${startDate}_al_${endDate}.xlsx`;
+    const filename = `Reporte_${empName.replace(/\s+/g, '_')}_Horas_${workStartDate}_al_${workEndDate}_Desc_${deductionStartDate}_al_${deductionEndDate}.xlsx`;
     XLSX.writeFile(wb, filename);
   };
 
   const exportAll = async () => {
-    if (!startDate || !endDate) return;
+    if (!workStartDate || !workEndDate || !deductionStartDate || !deductionEndDate) return;
     setExportingAll(true);
     clearMessage();
     try {
-      const allReports = await window.api.calculatePayrollAll(startDate, endDate);
+      const allReports = await window.api.calculatePayrollAll(
+        workStartDate,
+        workEndDate,
+        deductionStartDate,
+        deductionEndDate
+      );
       if (!allReports || allReports.length === 0) {
         showError('No hay empleados activos para exportar en el período seleccionado');
         setExportingAll(false);
         return;
       }
       const wb = buildWorkbook(allReports);
-      const filename = `Reporte_General_${startDate}_al_${endDate}.xlsx`;
+      const filename = `Reporte_General_Horas_${workStartDate}_al_${workEndDate}_Desc_${deductionStartDate}_al_${deductionEndDate}.xlsx`;
       XLSX.writeFile(wb, filename);
       showSuccess('Reporte general exportado');
     } catch (err) {
@@ -356,21 +371,50 @@ export default function PayrollReport() {
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         )}
         <div className="form-row">
-          <div className="form-group">
+          <div className="form-group" style={{ minWidth: 260 }}>
             <label>Empleado</label>
             <select value={selectedEmp} onChange={e => setSelectedEmp(e.target.value)} disabled={loading}>
               <option value="">{loading ? 'Cargando empleados...' : 'Seleccione...'}</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
-          <div className="form-group">
-            <label>Período desde</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+        </div>
+
+        <div className="form-row" style={{ gap: 16, alignItems: 'stretch' }}>
+          <div style={{ flex: 1, borderLeft: '3px solid #0f3460', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f3460', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              🕐 Período de Horas Trabajadas
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <div className="form-group">
+                <label>Desde</label>
+                <input type="date" value={workStartDate} onChange={e => setWorkStartDate(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Hasta</label>
+                <input type="date" value={workEndDate} onChange={e => setWorkEndDate(e.target.value)} />
+              </div>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Período hasta</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+
+          <div style={{ flex: 1, borderLeft: '3px solid #e94560', background: '#fff5f5', borderRadius: 8, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#e94560', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              💸 Período de Descuentos
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <div className="form-group">
+                <label>Desde</label>
+                <input type="date" value={deductionStartDate} onChange={e => setDeductionStartDate(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Hasta</label>
+                <input type="date" value={deductionEndDate} onChange={e => setDeductionEndDate(e.target.value)} />
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="form-row" style={{ marginTop: 4 }}>
           <button className="btn btn-primary" onClick={generate} disabled={loading}>
             {loading ? <span className="spinner" /> : 'Generar Reporte'}
           </button>
