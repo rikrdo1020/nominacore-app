@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import type { Employee, Deduction } from '../types/api';
 import { formatDateWithDay } from '../utils/time';
 
@@ -18,13 +19,19 @@ interface DeductionForm {
 export default function Deductions() {
   const [deductions, setDeductions] = useState<Deduction[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [form, setForm] = useState<DeductionForm>({
-    employee_id: '', date: new Date().toISOString().split('T')[0],
-    type: 'Comida', amount: '', description: '',
-  });
   const [filterEmp, setFilterEmp] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+
+  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<DeductionForm>({
+    defaultValues: {
+      employee_id: '',
+      date: new Date().toISOString().split('T')[0],
+      type: 'Comida',
+      amount: '',
+      description: '',
+    },
+  });
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -35,8 +42,12 @@ export default function Deductions() {
     clearMessage();
     try {
       if (window.api) {
-        setEmployees(await window.api.getEmployees());
-        setDeductions(await window.api.getDeductions(filterEmp ? Number(filterEmp) : null));
+        const [emps, deds] = await Promise.all([
+          window.api.getEmployees(),
+          window.api.getDeductions(filterEmp ? Number(filterEmp) : null),
+        ]);
+        setEmployees(emps);
+        setDeductions(deds);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Desconocido';
@@ -50,20 +61,26 @@ export default function Deductions() {
   useEffect(() => { load(); }, []);
   useEffect(() => { load(); }, [filterEmp]);
 
-  const submit = async () => {
-    if (!form.employee_id || !form.amount) return;
+  const onSubmit = async (data: DeductionForm) => {
+    if (!data.employee_id || !data.amount) return;
     setLoading(true);
     clearMessage();
     try {
       await window.api.addDeduction({
-        employee_id: Number(form.employee_id),
-        date: form.date,
-        type: form.type,
-        amount: parseFloat(form.amount),
-        description: form.description || null,
+        employee_id: Number(data.employee_id),
+        date: data.date,
+        type: data.type,
+        amount: parseFloat(data.amount),
+        description: data.description || null,
       });
       showSuccess('Descuento registrado correctamente');
-      setForm(f => ({ ...f, employee_id: '', amount: '', description: '' }));
+      reset({
+        employee_id: '',
+        date: new Date().toISOString().split('T')[0],
+        type: 'Comida',
+        amount: '',
+        description: '',
+      });
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Desconocido';
@@ -93,6 +110,8 @@ export default function Deductions() {
 
   const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
 
+  const isBusy = loading || isSubmitting;
+
   return (
     <div>
       <div className="page-header">
@@ -103,40 +122,40 @@ export default function Deductions() {
         {message && (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         )}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Empleado</label>
-            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}>
-              <option value="">Seleccione...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Empleado</label>
+              <select {...register('employee_id')} disabled={isBusy}>
+                <option value="">Seleccione...</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Fecha</label>
+              <input type="date" {...register('date')} disabled={isBusy} />
+            </div>
+            <div className="form-group">
+              <label>Tipo</label>
+              <select {...register('type')} disabled={isBusy}>
+                <option value="Comida">Comida</option>
+                <option value="Vales">Vales</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Monto</label>
+              <input type="number" step="0.01" min="0" {...register('amount')} style={{ width: 100 }} disabled={isBusy} />
+            </div>
+            <div className="form-group">
+              <label>Descripción</label>
+              <input {...register('description')} placeholder="Opcional" disabled={isBusy} />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={isBusy}>
+              {isBusy ? <span className="spinner" /> : 'Agregar'}
+            </button>
           </div>
-          <div className="form-group">
-            <label>Fecha</label>
-            <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label>Tipo</label>
-            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as DeductionForm['type'] }))}>
-              <option value="Comida">Comida</option>
-              <option value="Vales">Vales</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Monto</label>
-            <input type="number" step="0.01" min="0" value={form.amount}
-              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} style={{ width: 100 }} />
-          </div>
-          <div className="form-group">
-            <label>Descripción</label>
-            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Opcional" />
-          </div>
-          <button className="btn btn-primary" onClick={submit} disabled={loading}>
-            {loading ? <span className="spinner" /> : 'Agregar'}
-          </button>
-        </div>
+        </form>
       </div>
       <div className="card">
         <div className="form-row">

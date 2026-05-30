@@ -1,6 +1,6 @@
 {
   "name": "nominacore",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Control de horas y pagos de empleados",
   "author": "NominaCore",
   "main": "electron-dist/main.js",
@@ -53,6 +53,7 @@
     "express": "^4.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hook-form": "^7.76.1",
     "react-router-dom": "^6.26.0",
     "sql.js": "^1.11.0",
     "xlsx": "^0.18.5",

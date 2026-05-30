@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx-js-style';
 import type { Employee, PayrollReportData } from '../types/api';
 import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
@@ -14,17 +15,16 @@ type ActionOption =
   | 'export-individual'
   | 'export-all';
 
+interface PayrollForm {
+  selectedEmp: string;
+  workStartDate: string;
+  workEndDate: string;
+  deductionStartDate: string;
+  deductionEndDate: string;
+}
+
 export default function PayrollReport() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedEmp, setSelectedEmp] = useState('');
-  const [workStartDate, setWorkStartDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
-  });
-  const [workEndDate, setWorkEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [deductionStartDate, setDeductionStartDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0];
-  });
-  const [deductionEndDate, setDeductionEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [report, setReport] = useState<PayrollReportData | null>(null);
   const [exportingAll, setExportingAll] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,6 +32,19 @@ export default function PayrollReport() {
   const [actionOpen, setActionOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<ActionOption>('');
   const actionRef = useRef<HTMLDivElement>(null);
+
+  const { register, handleSubmit, getValues, watch, formState: { isSubmitting } } = useForm<PayrollForm>({
+    defaultValues: {
+      selectedEmp: '',
+      workStartDate: (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })(),
+      workEndDate: new Date().toISOString().split('T')[0],
+      deductionStartDate: (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })(),
+      deductionEndDate: new Date().toISOString().split('T')[0],
+    },
+  });
+
+  const selectedEmpValue = watch('selectedEmp');
+  const empName = employees.find(e => e.id === Number(selectedEmpValue))?.name || '';
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -67,17 +80,17 @@ export default function PayrollReport() {
     };
   }, []);
 
-  const generate = async () => {
-    if (!selectedEmp || !workStartDate || !workEndDate || !deductionStartDate || !deductionEndDate) return;
+  const generate = async (data: PayrollForm) => {
+    if (!data.selectedEmp || !data.workStartDate || !data.workEndDate || !data.deductionStartDate || !data.deductionEndDate) return;
     setLoading(true);
     clearMessage();
     try {
       const result = await window.api.calculatePayroll(
-        Number(selectedEmp),
-        workStartDate,
-        workEndDate,
-        deductionStartDate,
-        deductionEndDate
+        Number(data.selectedEmp),
+        data.workStartDate,
+        data.workEndDate,
+        data.deductionStartDate,
+        data.deductionEndDate
       );
       setReport(result);
     } catch (err) {
@@ -91,8 +104,6 @@ export default function PayrollReport() {
   };
 
   const print = () => window.print();
-
-  const empName = employees.find(e => e.id === Number(selectedEmp))?.name || '';
 
   const getDatesInRange = (start: string, end: string): string[] => {
     const dates: string[] = [];
@@ -296,22 +307,24 @@ export default function PayrollReport() {
 
   const exportIndividual = () => {
     if (!report) return;
+    const values = getValues();
     const r = { ...report, employee_name: empName };
     const wb = buildWorkbook([r]);
-    const filename = `Reporte_${empName.replace(/\s+/g, '_')}_Horas_${workStartDate}_al_${workEndDate}_Desc_${deductionStartDate}_al_${deductionEndDate}.xlsx`;
+    const filename = `Reporte_${empName.replace(/\s+/g, '_')}_Horas_${values.workStartDate}_al_${values.workEndDate}_Desc_${values.deductionStartDate}_al_${values.deductionEndDate}.xlsx`;
     XLSX.writeFile(wb, filename);
   };
 
   const exportAll = async () => {
-    if (!workStartDate || !workEndDate || !deductionStartDate || !deductionEndDate) return;
+    const values = getValues();
+    if (!values.workStartDate || !values.workEndDate || !values.deductionStartDate || !values.deductionEndDate) return;
     setExportingAll(true);
     clearMessage();
     try {
       const allReports = await window.api.calculatePayrollAll(
-        workStartDate,
-        workEndDate,
-        deductionStartDate,
-        deductionEndDate
+        values.workStartDate,
+        values.workEndDate,
+        values.deductionStartDate,
+        values.deductionEndDate
       );
       if (!allReports || allReports.length === 0) {
         showError('No hay empleados activos para exportar en el período seleccionado');
@@ -319,7 +332,7 @@ export default function PayrollReport() {
         return;
       }
       const wb = buildWorkbook(allReports);
-      const filename = `Reporte_General_Horas_${workStartDate}_al_${workEndDate}_Desc_${deductionStartDate}_al_${deductionEndDate}.xlsx`;
+      const filename = `Reporte_General_Horas_${values.workStartDate}_al_${values.workEndDate}_Desc_${values.deductionStartDate}_al_${values.deductionEndDate}.xlsx`;
       XLSX.writeFile(wb, filename);
       showSuccess('Reporte general exportado');
     } catch (err) {
@@ -345,7 +358,6 @@ export default function PayrollReport() {
       case 'export-all':
         exportAll();
         break;
-
     }
     // Reset after a brief delay so the label returns to "Acciones"
     setTimeout(() => setSelectedAction(''), 300);
@@ -356,8 +368,9 @@ export default function PayrollReport() {
     'print': 'Imprimir',
     'export-individual': 'Exportar Excel Individual',
     'export-all': 'Exportar Excel Todos',
-
   };
+
+  const isBusy = loading || isSubmitting;
 
   return (
     <div>
@@ -370,124 +383,126 @@ export default function PayrollReport() {
         {message && (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         )}
-        <div className="form-row">
-          <div className="form-group" style={{ minWidth: 260 }}>
-            <label>Empleado</label>
-            <select value={selectedEmp} onChange={e => setSelectedEmp(e.target.value)} disabled={loading}>
-              <option value="">{loading ? 'Cargando empleados...' : 'Seleccione...'}</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="form-row" style={{ gap: 16, alignItems: 'stretch' }}>
-          <div style={{ flex: 1, borderLeft: '3px solid #0f3460', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f3460', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              🕐 Período de Horas Trabajadas
-            </div>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <div className="form-group">
-                <label>Desde</label>
-                <input type="date" value={workStartDate} onChange={e => setWorkStartDate(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Hasta</label>
-                <input type="date" value={workEndDate} onChange={e => setWorkEndDate(e.target.value)} />
-              </div>
+        <form onSubmit={handleSubmit(generate)}>
+          <div className="form-row">
+            <div className="form-group" style={{ minWidth: 260 }}>
+              <label>Empleado</label>
+              <select {...register('selectedEmp')} disabled={isBusy}>
+                <option value="">{loading ? 'Cargando empleados...' : 'Seleccione...'}</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
             </div>
           </div>
 
-          <div style={{ flex: 1, borderLeft: '3px solid #e94560', background: '#fff5f5', borderRadius: 8, padding: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#e94560', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              💸 Período de Descuentos
-            </div>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <div className="form-group">
-                <label>Desde</label>
-                <input type="date" value={deductionStartDate} onChange={e => setDeductionStartDate(e.target.value)} />
+          <div className="form-row" style={{ gap: 16, alignItems: 'stretch' }}>
+            <div style={{ flex: 1, borderLeft: '3px solid #0f3460', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0f3460', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                🕐 Período de Horas Trabajadas
               </div>
-              <div className="form-group">
-                <label>Hasta</label>
-                <input type="date" value={deductionEndDate} onChange={e => setDeductionEndDate(e.target.value)} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="form-row" style={{ marginTop: 4 }}>
-          <button className="btn btn-primary" onClick={generate} disabled={loading}>
-            {loading ? <span className="spinner" /> : 'Generar Reporte'}
-          </button>
-
-          <div className="form-group" style={{ position: 'relative', minWidth: 220 }} ref={actionRef}>
-            <label>Opciones</label>
-            <div
-              className="custom-dropdown"
-              onClick={() => setActionOpen(!actionOpen)}
-              style={{
-                border: '1px solid #ccc',
-                borderRadius: 4,
-                padding: '8px 12px',
-                cursor: 'pointer',
-                background: '#fff',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                userSelect: 'none',
-              }}
-            >
-              <span>{actionLabels[selectedAction || '']}</span>
-              <span style={{ transform: actionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
-            </div>
-            {actionOpen && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#fff',
-                border: '1px solid #ccc',
-                borderRadius: 4,
-                marginTop: 4,
-                zIndex: 10,
-                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-              }}>
-                {report && (
-                  <>
-                    <div
-                      className="dropdown-item"
-                      onClick={() => handleActionChange('print')}
-                      style={{ padding: '8px 12px', cursor: 'pointer' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                    >
-                      Imprimir
-                    </div>
-                    <div
-                      className="dropdown-item"
-                      onClick={() => handleActionChange('export-individual')}
-                      style={{ padding: '8px 12px', cursor: 'pointer' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                    >
-                      Exportar Excel Individual
-                    </div>
-                    <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
-                  </>
-                )}
-                <div
-                  className="dropdown-item"
-                  onClick={() => handleActionChange('export-all')}
-                  style={{ padding: '8px 12px', cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                >
-                  {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <div className="form-group">
+                  <label>Desde</label>
+                  <input type="date" {...register('workStartDate')} disabled={isBusy} />
+                </div>
+                <div className="form-group">
+                  <label>Hasta</label>
+                  <input type="date" {...register('workEndDate')} disabled={isBusy} />
                 </div>
               </div>
-            )}
+            </div>
+
+            <div style={{ flex: 1, borderLeft: '3px solid #e94560', background: '#fff5f5', borderRadius: 8, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#e94560', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                💸 Período de Descuentos
+              </div>
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <div className="form-group">
+                  <label>Desde</label>
+                  <input type="date" {...register('deductionStartDate')} disabled={isBusy} />
+                </div>
+                <div className="form-group">
+                  <label>Hasta</label>
+                  <input type="date" {...register('deductionEndDate')} disabled={isBusy} />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <div className="form-row" style={{ marginTop: 4 }}>
+            <button type="submit" className="btn btn-primary" disabled={isBusy}>
+              {isBusy ? <span className="spinner" /> : 'Generar Reporte'}
+            </button>
+
+            <div className="form-group" style={{ position: 'relative', minWidth: 220 }} ref={actionRef}>
+              <label>Opciones</label>
+              <div
+                className="custom-dropdown"
+                onClick={() => setActionOpen(!actionOpen)}
+                style={{
+                  border: '1px solid #ccc',
+                  borderRadius: 4,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  background: '#fff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  userSelect: 'none',
+                }}
+              >
+                <span>{actionLabels[selectedAction || '']}</span>
+                <span style={{ transform: actionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+              </div>
+              {actionOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid #ccc',
+                  borderRadius: 4,
+                  marginTop: 4,
+                  zIndex: 10,
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                }}>
+                  {report && (
+                    <>
+                      <div
+                        className="dropdown-item"
+                        onClick={() => handleActionChange('print')}
+                        style={{ padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                      >
+                        Imprimir
+                      </div>
+                      <div
+                        className="dropdown-item"
+                        onClick={() => handleActionChange('export-individual')}
+                        style={{ padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                      >
+                        Exportar Excel Individual
+                      </div>
+                      <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
+                    </>
+                  )}
+                  <div
+                    className="dropdown-item"
+                    onClick={() => handleActionChange('export-all')}
+                    style={{ padding: '8px 12px', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                  >
+                    {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </form>
       </div>
 
       {report && (
@@ -635,7 +650,7 @@ export default function PayrollReport() {
         </>
       )}
 
-      {!report && selectedEmp && (
+      {!report && selectedEmpValue && (
         <div className="card">
           <div className="empty-state">
             <p>Seleccione un empleado y período, luego presione "Generar Reporte"</p>

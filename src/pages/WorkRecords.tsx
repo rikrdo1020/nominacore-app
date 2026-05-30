@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import type { Employee, WorkRecord } from '../types/api';
 import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
 
@@ -20,16 +21,25 @@ interface WorkRecordForm {
 export default function WorkRecords() {
   const [records, setRecords] = useState<WorkRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [form, setForm] = useState<WorkRecordForm>({
-    employee_id: '', date: new Date().toISOString().split('T')[0],
-    is_direct_entry: false, entry_time: '08:00', exit_time: '17:00',
-    direct_hours: '8', notes: '',
-  });
   const [filterEmp, setFilterEmp] = useState('');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+
+  const { register, handleSubmit, reset, setValue, watch, formState: { isSubmitting } } = useForm<WorkRecordForm>({
+    defaultValues: {
+      employee_id: '',
+      date: new Date().toISOString().split('T')[0],
+      is_direct_entry: false,
+      entry_time: '08:00',
+      exit_time: '17:00',
+      direct_hours: '8',
+      notes: '',
+    },
+  });
+
+  const isDirectEntry = watch('is_direct_entry');
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -61,23 +71,31 @@ export default function WorkRecords() {
   useEffect(() => { load(); }, []);
   useEffect(() => { load(); }, [filterEmp, filterStart, filterEnd]);
 
-  const submit = async () => {
-    if (!form.employee_id || !form.date) return;
+  const onSubmit = async (data: WorkRecordForm) => {
+    if (!data.employee_id || !data.date) return;
     setLoading(true);
     clearMessage();
     try {
       const record: Omit<WorkRecord, 'id' | 'created_at'> = {
-        employee_id: Number(form.employee_id),
-        date: form.date,
-        is_direct_entry: form.is_direct_entry ? 1 : 0,
-        entry_time: form.is_direct_entry ? null : form.entry_time,
-        exit_time: form.is_direct_entry ? null : form.exit_time,
-        direct_hours: form.is_direct_entry ? parseFloat(form.direct_hours) : null,
-        notes: form.notes || null,
+        employee_id: Number(data.employee_id),
+        date: data.date,
+        is_direct_entry: data.is_direct_entry ? 1 : 0,
+        entry_time: data.is_direct_entry ? null : data.entry_time,
+        exit_time: data.is_direct_entry ? null : data.exit_time,
+        direct_hours: data.is_direct_entry ? parseFloat(data.direct_hours) : null,
+        notes: data.notes || null,
       };
       await window.api.addWorkRecord(record);
       showSuccess('Registro guardado correctamente');
-      setForm(f => ({ ...f, employee_id: '', notes: '' }));
+      reset({
+        employee_id: '',
+        date: new Date().toISOString().split('T')[0],
+        is_direct_entry: false,
+        entry_time: '08:00',
+        exit_time: '17:00',
+        direct_hours: '8',
+        notes: '',
+      });
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Desconocido';
@@ -107,6 +125,8 @@ export default function WorkRecords() {
 
   const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
 
+  const isBusy = loading || isSubmitting;
+
   return (
     <div>
       <div className="page-header">
@@ -117,57 +137,56 @@ export default function WorkRecords() {
         {message && (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         )}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Empleado</label>
-            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}>
-              <option value="">Seleccione...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Fecha</label>
-            <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          </div>
-          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <label htmlFor="mode-entry" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Entrada/Salida</label>
-            <input id="mode-entry" type="radio" name="entryMode" checked={!form.is_direct_entry}
-              onChange={() => setForm(f => ({ ...f, is_direct_entry: false }))} />
-            <label htmlFor="mode-direct" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Horas directas</label>
-            <input id="mode-direct" type="radio" name="entryMode" checked={form.is_direct_entry}
-              onChange={() => setForm(f => ({ ...f, is_direct_entry: true }))} />
-          </div>
-        </div>
-        <div className="form-row">
-          {form.is_direct_entry ? (
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="form-row">
             <div className="form-group">
-              <label>Horas trabajadas</label>
-              <input type="number" step="0.25" min="0" max="24" value={form.direct_hours}
-                onChange={e => setForm(f => ({ ...f, direct_hours: e.target.value }))} style={{ width: 100 }} />
+              <label>Empleado</label>
+              <select {...register('employee_id')} disabled={isBusy}>
+                <option value="">Seleccione...</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
             </div>
-          ) : (
-            <>
-              <div className="form-group">
-                <label>Entrada</label>
-                <input type="time" value={form.entry_time}
-                  onChange={e => setForm(f => ({ ...f, entry_time: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label>Salida</label>
-                <input type="time" value={form.exit_time}
-                  onChange={e => setForm(f => ({ ...f, exit_time: e.target.value }))} />
-              </div>
-            </>
-          )}
-          <div className="form-group">
-            <label>Notas</label>
-            <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Opcional" />
+            <div className="form-group">
+              <label>Fecha</label>
+              <input type="date" {...register('date')} disabled={isBusy} />
+            </div>
+            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <label htmlFor="mode-entry" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Entrada/Salida</label>
+              <input id="mode-entry" type="radio" name="entryMode" checked={!isDirectEntry}
+                onChange={() => setValue('is_direct_entry', false)} />
+              <label htmlFor="mode-direct" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Horas directas</label>
+              <input id="mode-direct" type="radio" name="entryMode" checked={isDirectEntry}
+                onChange={() => setValue('is_direct_entry', true)} />
+            </div>
           </div>
-          <button className="btn btn-primary" onClick={submit} disabled={loading}>
-            {loading ? <span className="spinner" /> : 'Registrar'}
-          </button>
-        </div>
+          <div className="form-row">
+            {isDirectEntry ? (
+              <div className="form-group">
+                <label>Horas trabajadas</label>
+                <input type="number" step="0.25" min="0" max="24" {...register('direct_hours')}
+                  style={{ width: 100 }} disabled={isBusy} />
+              </div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label>Entrada</label>
+                  <input type="time" {...register('entry_time')} disabled={isBusy} />
+                </div>
+                <div className="form-group">
+                  <label>Salida</label>
+                  <input type="time" {...register('exit_time')} disabled={isBusy} />
+                </div>
+              </>
+            )}
+            <div className="form-group">
+              <label>Notas</label>
+              <input {...register('notes')} placeholder="Opcional" disabled={isBusy} />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={isBusy}>
+              {isBusy ? <span className="spinner" /> : 'Registrar'}
+            </button>
+          </div>
+        </form>
       </div>
       <div className="card">
         <div className="form-row">
@@ -233,4 +252,3 @@ export default function WorkRecords() {
     </div>
   );
 }
-

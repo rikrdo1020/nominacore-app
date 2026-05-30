@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import type { Employee } from '../types/api';
 import { formatDateTimeDay } from '../utils/time';
 
@@ -9,12 +10,14 @@ interface Message {
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [newName, setNewName] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editName, setEditName] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [apiReady, setApiReady] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const { register: registerAdd, handleSubmit: handleAdd, reset: resetAdd, formState: { isSubmitting: isAdding } } = useForm<{ name: string }>();
+
+  const { register: registerEdit, handleSubmit: handleEdit, reset: resetEdit, formState: { isSubmitting: isEditing } } = useForm<{ name: string }>();
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -44,14 +47,14 @@ export default function Employees() {
     }
   };
 
-  const add = async () => {
-    if (!newName.trim()) return;
+  const onAdd = async (data: { name: string }) => {
+    if (!data.name.trim()) return;
     setLoading(true);
     clearMessage();
     try {
-      await window.api.addEmployee(newName.trim());
+      await window.api.addEmployee(data.name.trim());
       showSuccess('Empleado agregado correctamente');
-      setNewName('');
+      resetAdd();
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Desconocido';
@@ -64,15 +67,15 @@ export default function Employees() {
 
   const startEdit = (emp: Employee) => {
     setEditingId(emp.id);
-    setEditName(emp.name);
+    resetEdit({ name: emp.name });
   };
 
-  const saveEdit = async (id: number) => {
-    if (!editName.trim()) return;
+  const onEdit = async (data: { name: string }) => {
+    if (!editingId || !data.name.trim()) return;
     setLoading(true);
     clearMessage();
     try {
-      await window.api.updateEmployee(id, editName.trim());
+      await window.api.updateEmployee(editingId, data.name.trim());
       showSuccess('Empleado actualizado');
       setEditingId(null);
       await load();
@@ -102,6 +105,8 @@ export default function Employees() {
     }
   };
 
+  const isBusy = loading || isAdding || isEditing;
+
   if (!apiReady) {
     return (
       <div>
@@ -129,16 +134,19 @@ export default function Employees() {
         {message && (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         )}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Nombre del empleado</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)}
-              placeholder="Ingrese nombre" onKeyDown={e => e.key === 'Enter' && add()} />
+        <form onSubmit={handleAdd(onAdd)}>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Nombre del empleado</label>
+              <input {...registerAdd('name')} placeholder="Ingrese nombre"
+                onKeyDown={e => e.key === 'Enter' && handleAdd(onAdd)()}
+                disabled={isBusy} />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={isBusy}>
+              {isBusy ? <span className="spinner" /> : 'Agregar'}
+            </button>
           </div>
-          <button className="btn btn-primary" onClick={add} disabled={loading}>
-            {loading ? <span className="spinner" /> : 'Agregar'}
-          </button>
-        </div>
+        </form>
       </div>
       <div className="card">
         {loading && employees.length === 0 ? (
@@ -162,9 +170,11 @@ export default function Employees() {
                 <tr key={emp.id}>
                   <td>
                     {editingId === emp.id ? (
-                      <input value={editName} onChange={e => setEditName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && saveEdit(emp.id)}
-                        onBlur={() => saveEdit(emp.id)} autoFocus />
+                      <form onSubmit={handleEdit(onEdit)}>
+                        <input {...registerEdit('name')}
+                          onKeyDown={e => e.key === 'Enter' && handleEdit(onEdit)()}
+                          onBlur={handleEdit(onEdit)} autoFocus />
+                      </form>
                     ) : (
                       emp.name
                     )}

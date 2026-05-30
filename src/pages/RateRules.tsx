@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import type { RateRule } from '../types/api';
 
 interface Message {
@@ -6,10 +7,18 @@ interface Message {
   text: string;
 }
 
+interface RateRulesForm {
+  rules: RateRule[];
+}
+
 export default function RateRules() {
   const [rules, setRules] = useState<RateRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+
+  const { control, reset } = useForm<RateRulesForm>({
+    defaultValues: { rules: [] },
+  });
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -30,6 +39,10 @@ export default function RateRules() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    reset({ rules });
+  }, [rules, reset]);
 
   const update = async (id: number, field: keyof RateRule, value: string) => {
     const rule = rules.find(r => r.id === id);
@@ -55,6 +68,44 @@ export default function RateRules() {
       setLoading(false);
     }
   };
+
+  const NumberField = ({
+    index,
+    field,
+    rule,
+    width,
+    step = '0.01',
+    min = '0',
+    max,
+  }: {
+    index: number;
+    field: 'max_regular_hours' | 'regular_rate' | 'overtime_rate' | 'lunch_duration';
+    rule: RateRule;
+    width: number;
+    step?: string;
+    min?: string;
+    max?: string;
+  }) => (
+    <Controller
+      name={`rules.${index}.${field}`}
+      control={control}
+      render={({ field: { value, onChange } }) => (
+        <input
+          type="number"
+          step={step}
+          min={min}
+          max={max}
+          value={value}
+          onChange={e => {
+            onChange(e.target.value);
+            update(rule.id, field, e.target.value);
+          }}
+          style={{ width }}
+          disabled={loading}
+        />
+      )}
+    />
+  );
 
   return (
     <div>
@@ -83,32 +134,20 @@ export default function RateRules() {
             </tr>
           </thead>
           <tbody>
-            {rules.map(rule => (
+            {rules.map((rule, idx) => (
               <tr key={rule.id}>
                 <td><strong>{rule.day_name}</strong></td>
                 <td>
-                  <input type="number" step="0.5" min="0" max="24"
-                    value={rule.max_regular_hours}
-                    onChange={e => update(rule.id, 'max_regular_hours', e.target.value)}
-                    style={{ width: 80 }} disabled={loading} />
+                  <NumberField index={idx} field="max_regular_hours" rule={rule} width={80} step="0.5" max="24" />
                 </td>
                 <td>
-                  <input type="number" step="0.01" min="0"
-                    value={rule.regular_rate}
-                    onChange={e => update(rule.id, 'regular_rate', e.target.value)}
-                    style={{ width: 100 }} disabled={loading} />
+                  <NumberField index={idx} field="regular_rate" rule={rule} width={100} />
                 </td>
                 <td>
-                  <input type="number" step="0.01" min="0"
-                    value={rule.overtime_rate}
-                    onChange={e => update(rule.id, 'overtime_rate', e.target.value)}
-                    style={{ width: 100 }} disabled={loading} />
+                  <NumberField index={idx} field="overtime_rate" rule={rule} width={100} />
                 </td>
                 <td>
-                  <input type="number" step="0.01" min="0" max="24"
-                    value={rule.lunch_duration}
-                    onChange={e => update(rule.id, 'lunch_duration', e.target.value)}
-                    style={{ width: 100 }} disabled={loading} />
+                  <NumberField index={idx} field="lunch_duration" rule={rule} width={100} max="24" />
                 </td>
               </tr>
             ))}

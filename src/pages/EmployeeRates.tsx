@@ -1,9 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import type { Employee, EmployeeRate, RateRule } from '../types/api';
 
 interface Message {
   type: 'error' | 'success';
   text: string;
+}
+
+interface DayRateRow {
+  isCustom: boolean;
+  max_regular_hours: number;
+  regular_rate: number;
+  overtime_rate: number;
+  lunch_duration: number;
+}
+
+interface EmployeeRatesForm {
+  days: DayRateRow[];
 }
 
 const DAYS = [
@@ -23,6 +36,10 @@ export default function EmployeeRates() {
   const [generalRules, setGeneralRules] = useState<RateRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
+
+  const { control, reset } = useForm<EmployeeRatesForm>({
+    defaultValues: { days: DAYS.map(() => ({ isCustom: false, max_regular_hours: 8, regular_rate: 2.5, overtime_rate: 3, lunch_duration: 0.5 })) },
+  });
 
   const showError = (msg: string) => setMessage({ type: 'error', text: msg });
   const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
@@ -84,6 +101,21 @@ export default function EmployeeRates() {
     return employeeRates.some(r => r.day_of_week === dow && r.is_active);
   };
 
+  useEffect(() => {
+    const days: DayRateRow[] = DAYS.map(day => {
+      const rate = getRateForDay(day.dow);
+      return {
+        isCustom: hasCustomRate(day.dow),
+        max_regular_hours: rate?.max_regular_hours ?? 8,
+        regular_rate: rate?.regular_rate ?? 2.5,
+        overtime_rate: rate?.overtime_rate ?? 3,
+        lunch_duration: rate?.lunch_duration ?? 0.5,
+      };
+    });
+    reset({ days });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeRates, generalRules]);
+
   const toggleDayRate = async (dow: number) => {
     if (!selectedEmployee) return;
     const existing = employeeRates.find(r => r.day_of_week === dow);
@@ -92,13 +124,11 @@ export default function EmployeeRates() {
     clearMessage();
     try {
       if (existing) {
-        // Toggle is_active
         await window.api.updateEmployeeRate(existing.id, {
           is_active: !existing.is_active,
         });
         showSuccess(existing.is_active ? 'Tarifa personalizada desactivada' : 'Tarifa personalizada activada');
       } else {
-        // Create with general rule defaults
         const general = generalRules.find(r => r.day_of_week === dow);
         await window.api.createEmployeeRate({
           employee_id: selectedEmployee,
@@ -196,19 +226,24 @@ export default function EmployeeRates() {
                 </tr>
               </thead>
               <tbody>
-                {DAYS.map(day => {
-                  const rate = getRateForDay(day.dow);
+                {DAYS.map((day, idx) => {
                   const isCustom = hasCustomRate(day.dow);
                   return (
                     <tr key={day.dow}>
                       <td><strong>{day.name}</strong></td>
                       <td>
                         <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <input
-                            type="checkbox"
-                            checked={isCustom}
-                            onChange={() => toggleDayRate(day.dow)}
-                            disabled={loading}
+                          <Controller
+                            name={`days.${idx}.isCustom`}
+                            control={control}
+                            render={({ field: { value } }) => (
+                              <input
+                                type="checkbox"
+                                checked={value}
+                                onChange={() => toggleDayRate(day.dow)}
+                                disabled={loading}
+                              />
+                            )}
                           />
                           <span style={{ fontSize: 12, color: isCustom ? '#2e7d32' : '#888' }}>
                             {isCustom ? 'Sí (editable)' : 'No (usa general)'}
@@ -216,39 +251,75 @@ export default function EmployeeRates() {
                         </label>
                       </td>
                       <td>
-                        <input
-                          type="number" step="0.5" min="0" max="24"
-                          value={rate?.max_regular_hours ?? 8}
-                          onChange={e => isCustom && updateRate(day.dow, 'max_regular_hours', e.target.value)}
-                          style={{ width: 80 }}
-                          disabled={loading || !isCustom}
+                        <Controller
+                          name={`days.${idx}.max_regular_hours`}
+                          control={control}
+                          render={({ field: { value, onChange } }) => (
+                            <input
+                              type="number" step="0.5" min="0" max="24"
+                              value={value}
+                              onChange={e => {
+                                onChange(e.target.value);
+                                isCustom && updateRate(day.dow, 'max_regular_hours', e.target.value);
+                              }}
+                              style={{ width: 80 }}
+                              disabled={loading || !isCustom}
+                            />
+                          )}
                         />
                       </td>
                       <td>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={rate?.regular_rate ?? 2.50}
-                          onChange={e => isCustom && updateRate(day.dow, 'regular_rate', e.target.value)}
-                          style={{ width: 100 }}
-                          disabled={loading || !isCustom}
+                        <Controller
+                          name={`days.${idx}.regular_rate`}
+                          control={control}
+                          render={({ field: { value, onChange } }) => (
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={value}
+                              onChange={e => {
+                                onChange(e.target.value);
+                                isCustom && updateRate(day.dow, 'regular_rate', e.target.value);
+                              }}
+                              style={{ width: 100 }}
+                              disabled={loading || !isCustom}
+                            />
+                          )}
                         />
                       </td>
                       <td>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={rate?.overtime_rate ?? 3.00}
-                          onChange={e => isCustom && updateRate(day.dow, 'overtime_rate', e.target.value)}
-                          style={{ width: 100 }}
-                          disabled={loading || !isCustom}
+                        <Controller
+                          name={`days.${idx}.overtime_rate`}
+                          control={control}
+                          render={({ field: { value, onChange } }) => (
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={value}
+                              onChange={e => {
+                                onChange(e.target.value);
+                                isCustom && updateRate(day.dow, 'overtime_rate', e.target.value);
+                              }}
+                              style={{ width: 100 }}
+                              disabled={loading || !isCustom}
+                            />
+                          )}
                         />
                       </td>
                       <td>
-                        <input
-                          type="number" step="0.01" min="0" max="24"
-                          value={rate?.lunch_duration ?? 0.5}
-                          onChange={e => isCustom && updateRate(day.dow, 'lunch_duration', e.target.value)}
-                          style={{ width: 100 }}
-                          disabled={loading || !isCustom}
+                        <Controller
+                          name={`days.${idx}.lunch_duration`}
+                          control={control}
+                          render={({ field: { value, onChange } }) => (
+                            <input
+                              type="number" step="0.01" min="0" max="24"
+                              value={value}
+                              onChange={e => {
+                                onChange(e.target.value);
+                                isCustom && updateRate(day.dow, 'lunch_duration', e.target.value);
+                              }}
+                              style={{ width: 100 }}
+                              disabled={loading || !isCustom}
+                            />
+                          )}
                         />
                       </td>
                     </tr>
