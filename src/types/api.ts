@@ -16,6 +16,17 @@ export interface RateRule {
   is_active: number;
 }
 
+export interface EmployeeRate {
+  id: number;
+  employee_id: number;
+  day_of_week: number;
+  max_regular_hours: number;
+  regular_rate: number;
+  overtime_rate: number;
+  lunch_duration: number;
+  is_active: number;
+}
+
 export interface WorkRecord {
   id: number;
   employee_id: number;
@@ -110,6 +121,29 @@ export interface ApiService {
     otRate: number,
     lunchDuration: number
   ): Promise<{ success: boolean }>;
+
+  // Employee Rates
+  getEmployeeRates(employeeId?: number): Promise<EmployeeRate[]>;
+  createEmployeeRate(dto: {
+    employee_id: number;
+    day_of_week: number;
+    max_regular_hours?: number;
+    regular_rate?: number;
+    overtime_rate?: number;
+    lunch_duration?: number;
+  }): Promise<{ id: number }>;
+  updateEmployeeRate(
+    id: number,
+    dto: {
+      day_of_week?: number;
+      max_regular_hours?: number;
+      regular_rate?: number;
+      overtime_rate?: number;
+      lunch_duration?: number;
+      is_active?: boolean;
+    }
+  ): Promise<{ success: boolean }>;
+  deleteEmployeeRate(id: number): Promise<{ success: boolean }>;
 
   // Work Records
   getWorkRecords(empId: number, start?: string, end?: string): Promise<WorkRecord[]>;

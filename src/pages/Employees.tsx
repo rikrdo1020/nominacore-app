@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Employee } from '../types/api';
+import { formatDateTimeDay } from '../utils/time';
 
 interface Message {
   type: 'error' | 'success';
@@ -168,7 +169,7 @@ export default function Employees() {
                       emp.name
                     )}
                   </td>
-                  <td>{emp.created_at}</td>
+                  <td>{formatDateTimeDay(emp.created_at)}</td>
                   <td className="actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => startEdit(emp)}>Editar</button>
                     <button className="btn btn-danger btn-sm" onClick={() => remove(emp.id)}>Desactivar</button>

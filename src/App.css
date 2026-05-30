@@ -59,6 +59,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .form-group input, .form-group select, .form-group textarea {
   padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 14px;
   background: #fff; min-width: 140px; transition: border-color 0.15s;
+  pointer-events: auto;
 }
 .form-group input:focus, .form-group select:focus { outline: none; border-color: #0f3460; }
 

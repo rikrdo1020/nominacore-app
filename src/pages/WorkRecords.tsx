@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Employee, WorkRecord } from '../types/api';
-import { calcHours } from '../utils/time';
+import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
 
 interface Message {
   type: 'error' | 'success';
@@ -130,11 +130,11 @@ export default function WorkRecords() {
             <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </div>
           <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <label style={{ textTransform: 'none', letterSpacing: 0 }}>Entrada/Salida</label>
-            <input type="radio" checked={!form.is_direct_entry}
+            <label htmlFor="mode-entry" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Entrada/Salida</label>
+            <input id="mode-entry" type="radio" name="entryMode" checked={!form.is_direct_entry}
               onChange={() => setForm(f => ({ ...f, is_direct_entry: false }))} />
-            <label style={{ textTransform: 'none', letterSpacing: 0 }}>Horas directas</label>
-            <input type="radio" checked={form.is_direct_entry}
+            <label htmlFor="mode-direct" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Horas directas</label>
+            <input id="mode-direct" type="radio" name="entryMode" checked={form.is_direct_entry}
               onChange={() => setForm(f => ({ ...f, is_direct_entry: true }))} />
           </div>
         </div>
@@ -215,10 +215,10 @@ export default function WorkRecords() {
               {records.map(r => (
                 <tr key={r.id}>
                   <td>{r.employee_name || empName(r.employee_id)}</td>
-                  <td>{r.date}</td>
+                  <td>{formatDateWithDay(r.date)}</td>
                   <td>{r.is_direct_entry ? 'Directo' : 'Ent/Sal'}</td>
-                  <td>{r.entry_time || '-'}</td>
-                  <td>{r.exit_time || '-'}</td>
+                  <td>{formatTime12Hour(r.entry_time)}</td>
+                  <td>{formatTime12Hour(r.exit_time)}</td>
                   <td>{r.is_direct_entry ? r.direct_hours : (
                     r.entry_time && r.exit_time ? calcHours(r.entry_time, r.exit_time) : '-'
                   )}</td>

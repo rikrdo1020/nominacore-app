@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import type { Employee, PayrollReportData } from '../types/api';
-import { calcHours } from '../utils/time';
+import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
 
 interface Message {
   type: 'error' | 'success';
@@ -12,9 +12,7 @@ type ActionOption =
   | ''
   | 'print'
   | 'export-individual'
-  | 'export-all'
-  | 'export-breakdown'
-  | 'register-payment';
+  | 'export-all';
 
 export default function PayrollReport() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -59,7 +57,10 @@ export default function PayrollReport() {
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      setActionOpen(false);
+    };
   }, []);
 
   const generate = async () => {
@@ -79,115 +80,207 @@ export default function PayrollReport() {
     }
   };
 
-  const pay = async () => {
-    if (!report) return;
-    setLoading(true);
-    clearMessage();
-    try {
-      const now = new Date().toISOString();
-      await window.api.savePayroll(report.employee_id, report.period_start, report.period_end, now);
-      showSuccess('Pago registrado exitosamente');
-      setReport(null);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al registrar pago: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const print = () => window.print();
 
   const empName = employees.find(e => e.id === Number(selectedEmp))?.name || '';
 
-  const usedSheetNames = new Set<string>();
-  const safeSheetName = (name: string) => {
-    let base = name.replace(/[\\/*\[\]:?]/g, '-').substring(0, 31);
-    let finalName = base;
-    let counter = 1;
-    while (usedSheetNames.has(finalName)) {
-      const suffix = `-${counter}`;
-      finalName = base.substring(0, 31 - suffix.length) + suffix;
-      counter++;
+  const getDatesInRange = (start: string, end: string): string[] => {
+    const dates: string[] = [];
+    const curr = new Date(start + 'T00:00:00');
+    const last = new Date(end + 'T00:00:00');
+    while (curr <= last) {
+      dates.push(curr.toISOString().split('T')[0]);
+      curr.setDate(curr.getDate() + 1);
     }
-    usedSheetNames.add(finalName);
-    return finalName;
+    return dates;
+  };
+
+  const formatDateCell = (dateStr: string): string => {
+    return formatDateWithDay(dateStr);
+  };
+
+  const formatDollar = (val: number): string => {
+    return '$' + val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  const thinBorder = {
+    top: { style: 'thin' as any, color: { rgb: '000000' } },
+    bottom: { style: 'thin' as any, color: { rgb: '000000' } },
+    left: { style: 'thin' as any, color: { rgb: '000000' } },
+    right: { style: 'thin' as any, color: { rgb: '000000' } },
+  };
+
+  const titleStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
+    fill: { patternType: 'solid' as any, fgColor: { rgb: '1A1A2E' } },
+    border: thinBorder,
+  };
+
+  const headerStyle = {
+    font: { bold: true, color: { rgb: '000000' } },
+    fill: { patternType: 'solid' as any, fgColor: { rgb: 'E9E9E9' } },
+    border: thinBorder,
+  };
+
+  const totalStyle = {
+    font: { bold: true, color: { rgb: '000000' } },
+    fill: { patternType: 'solid' as any, fgColor: { rgb: 'D9E1F2' } },
+    border: thinBorder,
   };
 
   const buildWorkbook = (reports: (PayrollReportData & { employee_name?: string })[]) => {
-    const wb = XLSX.utils.book_new();
+    const aoa: any[][] = [];
+    const totalCols = 11;
 
-    const summaryData = reports.map(r => ({
-      Empleado: r.employee_name || employees.find(e => e.id === r.employee_id)?.name || '',
-      'Horas Regulares': r.total_regular_hours,
-      'Horas Extra': r.total_overtime_hours,
-      'Pago Regular': r.regular_pay,
-      'Pago Extra': r.overtime_pay,
-      Subtotal: r.gross_pay,
-      Descuentos: r.total_deductions,
-      'Neto a Pagar': r.net_pay,
-    }));
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, safeSheetName('Resumen General'));
-
-    reports.forEach(r => {
+    reports.forEach((r) => {
       const fullName = r.employee_name || employees.find(e => e.id === r.employee_id)?.name || `Empleado ${r.employee_id}`;
+      const allDates = getDatesInRange(r.period_start, r.period_end);
 
-      const resData = [{
-        Empleado: fullName,
-        Periodo: `${r.period_start} al ${r.period_end}`,
-        'Horas Regulares': r.total_regular_hours,
-        'Horas Extra': r.total_overtime_hours,
-        'Pago Regular': r.regular_pay,
-        'Pago Extra': r.overtime_pay,
-        Subtotal: r.gross_pay,
-        Descuentos: r.total_deductions,
-        'Neto a Pagar': r.net_pay,
-      }];
-      const wsRes = XLSX.utils.json_to_sheet(resData);
-      XLSX.utils.book_append_sheet(wb, wsRes, safeSheetName(`${fullName} - Resumen`));
+      // Título del empleado
+      aoa.push([fullName]);
 
-      if (r.work_records && r.work_records.length > 0) {
-        const hoursData = r.work_records.map(wr => ({
-          Fecha: wr.date,
-          Entrada: wr.entry_time || '-',
-          Salida: wr.exit_time || '-',
-          Horas: wr.is_direct_entry ? (wr.direct_hours?.toFixed(2) || '0.00') : (
-            wr.entry_time && wr.exit_time ? calcHours(wr.entry_time, wr.exit_time) : '-'
-          ),
-        }));
-        const wsHours = XLSX.utils.json_to_sheet(hoursData);
-        XLSX.utils.book_append_sheet(wb, wsHours, safeSheetName(`${fullName} - Horas`));
-      }
+      // Encabezados
+      aoa.push([
+        'Fecha', 'Entrada', 'Salida', 'Horas',
+        'H. Regulares', 'H. Extra', 'Pago Regular', 'Pago Extra',
+        'Total Día', 'Descuentos', 'Neto Día'
+      ]);
 
-      if (r.deductions && r.deductions.length > 0) {
-        const dedData = r.deductions.map(d => ({
-          Fecha: d.date,
-          Tipo: d.type,
-          Monto: d.amount,
-          Descripción: d.description || '-',
-        }));
-        const wsDed = XLSX.utils.json_to_sheet(dedData);
-        XLSX.utils.book_append_sheet(wb, wsDed, safeSheetName(`${fullName} - Descuentos`));
-      }
+      // Filas de datos (todas las fechas del período)
+      allDates.forEach((dateStr) => {
+        const db = r.daily_breakdown?.find(d => d.date === dateStr);
+        const wr = r.work_records?.find(w => w.date === dateStr);
 
-      if (r.daily_breakdown && r.daily_breakdown.length > 0) {
-        const breakdownData = r.daily_breakdown.map(db => ({
-          Fecha: db.date,
-          'Horas Regulares': db.regular_hours,
-          'Horas Extra': db.overtime_hours,
-          'Pago Regular': db.regular_pay,
-          'Pago Extra': db.overtime_pay,
-          'Total Día': db.daily_total,
-          Descuentos: db.deductions,
-          'Neto Día': db.daily_total - db.deductions,
-        }));
-        const wsBreakdown = XLSX.utils.json_to_sheet(breakdownData);
-        XLSX.utils.book_append_sheet(wb, wsBreakdown, safeSheetName(`${fullName} - Desglose`));
-      }
+        if (db) {
+          const hours = wr?.is_direct_entry
+            ? (wr.direct_hours?.toFixed(2) || '0.00')
+            : (wr?.entry_time && wr?.exit_time ? calcHours(wr.entry_time, wr.exit_time) : '-');
+
+          aoa.push([
+            formatDateCell(dateStr),
+            formatTime12Hour(wr?.entry_time),
+            formatTime12Hour(wr?.exit_time),
+            hours,
+            db.regular_hours.toFixed(2),
+            db.overtime_hours.toFixed(2),
+            formatDollar(db.regular_pay),
+            formatDollar(db.overtime_pay),
+            formatDollar(db.daily_total),
+            formatDollar(db.deductions),
+            formatDollar(db.daily_total - db.deductions),
+          ]);
+        } else if (wr) {
+          const hours = wr.is_direct_entry
+            ? (wr.direct_hours?.toFixed(2) || '0.00')
+            : (wr.entry_time && wr.exit_time ? calcHours(wr.entry_time, wr.exit_time) : '-');
+
+          aoa.push([
+            formatDateCell(dateStr),
+            formatTime12Hour(wr.entry_time),
+            formatTime12Hour(wr.exit_time),
+            hours,
+            '0.00',
+            '0.00',
+            '$0.00',
+            '$0.00',
+            '$0.00',
+            '$0.00',
+            '$0.00',
+          ]);
+        } else {
+          aoa.push([
+            formatDateCell(dateStr),
+            '-', '-', '-',
+            '0.00', '0.00',
+            '$0.00', '$0.00',
+            '$0.00', '$0.00',
+            '$0.00',
+          ]);
+        }
+      });
+
+      // Fila de totales del empleado
+      aoa.push([
+        'TOTALES', '', '', '',
+        r.total_regular_hours.toFixed(2),
+        r.total_overtime_hours.toFixed(2),
+        formatDollar(r.regular_pay),
+        formatDollar(r.overtime_pay),
+        formatDollar(r.gross_pay),
+        formatDollar(r.total_deductions),
+        formatDollar(r.net_pay),
+      ]);
+
+      // Separación entre empleados
+      aoa.push([]);
+      aoa.push([]);
     });
 
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Forzar que el rango cubra todas las columnas de la tabla
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    range.e.c = Math.max(range.e.c, totalCols - 1);
+    ws['!ref'] = XLSX.utils.encode_range(range);
+
+    // Aplicar bordes a todas las celdas del rango
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C < totalCols; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        ws[cellRef].s.border = thinBorder;
+      }
+    }
+
+    // Aplicar estilos específicos por sección
+    let currentRow = 0;
+    reports.forEach((r) => {
+      const allDates = getDatesInRange(r.period_start, r.period_end);
+
+      // Título del empleado (negrita, fondo oscuro, texto blanco)
+      for (let C = 0; C < totalCols; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        Object.assign(ws[cellRef].s, titleStyle);
+      }
+      currentRow++;
+
+      // Headers de columna
+      for (let C = 0; C < totalCols; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        Object.assign(ws[cellRef].s, headerStyle);
+      }
+      currentRow++;
+
+      // Saltar filas de datos
+      currentRow += allDates.length;
+
+      // Fila de totales
+      for (let C = 0; C < totalCols; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        Object.assign(ws[cellRef].s, totalStyle);
+      }
+      currentRow++;
+
+      // Saltar filas de separación
+      currentRow += 2;
+    });
+
+    // Ajustar anchos de columna
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Reporte General');
     return wb;
   };
 
@@ -222,25 +315,6 @@ export default function PayrollReport() {
     setExportingAll(false);
   };
 
-  const exportBreakdownOnly = () => {
-    if (!report || !report.daily_breakdown || report.daily_breakdown.length === 0) return;
-    const wb = XLSX.utils.book_new();
-    const breakdownData = report.daily_breakdown.map(db => ({
-      Fecha: db.date,
-      'Horas Regulares': db.regular_hours,
-      'Horas Extra': db.overtime_hours,
-      'Pago Regular': db.regular_pay,
-      'Pago Extra': db.overtime_pay,
-      'Total Día': db.daily_total,
-      Descuentos: db.deductions,
-      'Neto Día': db.daily_total - db.deductions,
-    }));
-    const ws = XLSX.utils.json_to_sheet(breakdownData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Desglose Diario');
-    const filename = `Desglose_${empName.replace(/\s+/g, '_')}_${startDate}_al_${endDate}.xlsx`;
-    XLSX.writeFile(wb, filename);
-  };
-
   const handleActionChange = (action: ActionOption) => {
     setSelectedAction(action);
     setActionOpen(false);
@@ -256,12 +330,7 @@ export default function PayrollReport() {
       case 'export-all':
         exportAll();
         break;
-      case 'export-breakdown':
-        exportBreakdownOnly();
-        break;
-      case 'register-payment':
-        pay();
-        break;
+
     }
     // Reset after a brief delay so the label returns to "Acciones"
     setTimeout(() => setSelectedAction(''), 300);
@@ -272,8 +341,7 @@ export default function PayrollReport() {
     'print': 'Imprimir',
     'export-individual': 'Exportar Excel Individual',
     'export-all': 'Exportar Excel Todos',
-    'export-breakdown': 'Descargar Desglose',
-    'register-payment': 'Registrar Pago',
+
   };
 
   return (
@@ -360,24 +428,6 @@ export default function PayrollReport() {
                     >
                       Exportar Excel Individual
                     </div>
-                    <div
-                      className="dropdown-item"
-                      onClick={() => handleActionChange('export-breakdown')}
-                      style={{ padding: '8px 12px', cursor: 'pointer' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                    >
-                      Descargar Desglose
-                    </div>
-                    <div
-                      className="dropdown-item"
-                      onClick={() => handleActionChange('register-payment')}
-                      style={{ padding: '8px 12px', cursor: 'pointer' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                    >
-                      Registrar Pago
-                    </div>
                     <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
                   </>
                 )}
@@ -401,7 +451,7 @@ export default function PayrollReport() {
           <div className="card">
             <h2 style={{ fontSize: 18, marginBottom: 8 }}>{empName}</h2>
             <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>
-              Período: {report.period_start} al {report.period_end}
+              Período: {formatDateWithDay(report.period_start)} al {formatDateWithDay(report.period_end)}
             </p>
 
             <div className="report-summary">
@@ -455,7 +505,7 @@ export default function PayrollReport() {
                 <tbody>
                   {report.daily_breakdown.map((db, idx) => (
                     <tr key={idx}>
-                      <td>{db.date}</td>
+                      <td>{formatDateWithDay(db.date)}</td>
                       <td>{db.regular_hours.toFixed(2)}</td>
                       <td>{db.overtime_hours.toFixed(2)}</td>
                       <td>${db.regular_pay.toFixed(2)}</td>
@@ -495,9 +545,9 @@ export default function PayrollReport() {
                 <tbody>
                   {report.work_records.map(r => (
                     <tr key={r.id}>
-                      <td>{r.date}</td>
-                      <td>{r.entry_time || '-'}</td>
-                      <td>{r.exit_time || '-'}</td>
+                      <td>{formatDateWithDay(r.date)}</td>
+                      <td>{formatTime12Hour(r.entry_time)}</td>
+                      <td>{formatTime12Hour(r.exit_time)}</td>
                       <td>{r.is_direct_entry ? r.direct_hours?.toFixed(2) : (
                         r.entry_time && r.exit_time ? calcHours(r.entry_time, r.exit_time) : '-'
                       )}</td>
@@ -523,7 +573,7 @@ export default function PayrollReport() {
                 <tbody>
                   {report.deductions.map(d => (
                     <tr key={d.id}>
-                      <td>{d.date}</td>
+                      <td>{formatDateWithDay(d.date)}</td>
                       <td>{d.type}</td>
                       <td>${d.amount.toFixed(2)}</td>
                       <td>{d.description || '-'}</td>

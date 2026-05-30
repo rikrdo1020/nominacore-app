@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Employee, Deduction } from '../types/api';
+import { formatDateWithDay } from '../utils/time';
 
 interface Message {
   type: 'error' | 'success';
@@ -172,7 +173,7 @@ export default function Deductions() {
               {deductions.map(d => (
                 <tr key={d.id}>
                   <td>{d.employee_name || empName(d.employee_id)}</td>
-                  <td>{d.date}</td>
+                  <td>{formatDateWithDay(d.date)}</td>
                   <td><span className="status-badge" style={{
                     background: d.type === 'Comida' ? '#e8f4fd' : d.type === 'Vales' ? '#fef3e2' : '#f0e6ff',
                     color: d.type === 'Comida' ? '#0a6e9e' : d.type === 'Vales' ? '#9e6e0a' : '#6e0a9e',

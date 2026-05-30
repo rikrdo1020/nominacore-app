@@ -90,6 +90,46 @@ try {
         lunchDuration: lunchDuration,
       }),
 
+    // Employee Rates
+    getEmployeeRates: (employeeId?: number) => {
+      const params = new URLSearchParams();
+      if (employeeId) params.append('employee_id', String(employeeId));
+      return apiGet(`/employee-rates?${params.toString()}`);
+    },
+    createEmployeeRate: (dto: {
+      employee_id: number;
+      day_of_week: number;
+      max_regular_hours?: number;
+      regular_rate?: number;
+      overtime_rate?: number;
+      lunch_duration?: number;
+    }) =>
+      apiPost('/employee-rates', {
+        employeeId: dto.employee_id,
+        dayOfWeek: dto.day_of_week,
+        maxRegularHours: dto.max_regular_hours,
+        regularRate: dto.regular_rate,
+        overtimeRate: dto.overtime_rate,
+        lunchDuration: dto.lunch_duration,
+      }),
+    updateEmployeeRate: (id: number, dto: {
+      day_of_week?: number;
+      max_regular_hours?: number;
+      regular_rate?: number;
+      overtime_rate?: number;
+      lunch_duration?: number;
+      is_active?: boolean;
+    }) =>
+      apiPut(`/employee-rates/${id}`, {
+        dayOfWeek: dto.day_of_week,
+        maxRegularHours: dto.max_regular_hours,
+        regularRate: dto.regular_rate,
+        overtimeRate: dto.overtime_rate,
+        lunchDuration: dto.lunch_duration,
+        isActive: dto.is_active,
+      }),
+    deleteEmployeeRate: (id: number) => apiDelete(`/employee-rates/${id}`),
+
     // Work Records
     getWorkRecords: (empId: number, start?: string, end?: string) => {
       const params = new URLSearchParams();
