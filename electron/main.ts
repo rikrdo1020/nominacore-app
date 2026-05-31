@@ -1,9 +1,11 @@
 import 'dotenv/config';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import path from 'path';
 import { initUpdater, checkForUpdates, quitAndInstall } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
+
+const appIcon = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png'));
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -11,10 +13,12 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 600,
+    icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
     title: 'NominaCore - Control de Horas',
   });
@@ -29,6 +33,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.valentini.assistant');
+  }
   createWindow();
 
   app.on('activate', () => {

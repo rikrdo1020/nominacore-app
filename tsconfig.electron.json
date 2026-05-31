@@ -9,7 +9,6 @@
     "skipLibCheck": true,
     "strict": true,
     "moduleResolution": "node10",
-    "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true

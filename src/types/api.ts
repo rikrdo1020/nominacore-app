@@ -99,7 +99,28 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export interface User {
+  id: number;
+  username: string;
+  role: 'ADMIN' | 'USER';
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ApiService {
+  // Auth
+  setAuthToken(token: string): void;
+  clearAuthToken(): void;
+  login(username: string, password: string): Promise<{ access_token: string }>;
+  getMe(): Promise<User>;
+  getUsers(): Promise<User[]>;
+  createUser(dto: { username: string; password: string; role: string }): Promise<{ id: number }>;
+  updateUser(id: number, dto: Partial<{ username: string; password: string; role: string; is_active: boolean }>): Promise<{ success: boolean }>;
+  deleteUser(id: number): Promise<{ success: boolean }>;
+
+  // App info
+  appVersion: string;
+
   // Auto-updater
   checkForUpdates(): void;
   quitAndInstall(): void;
@@ -162,9 +183,6 @@ export interface ApiService {
   calculatePayrollAll(workStart: string, workEnd: string, deductionStart: string, deductionEnd: string): Promise<(PayrollReportData & { employee_name?: string })[]>;
   savePayroll(empId: number, start: string, end: string, paidAt: string): Promise<{ id: number }>;
   getPayrollHistory(empId?: number | null): Promise<PayrollHistory[]>;
-
-  // App info
-  appVersion: string;
 }
 
 declare global {

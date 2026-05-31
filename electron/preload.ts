@@ -18,6 +18,16 @@ try {
 }
 console.log('[Preload] App version:', appVersion);
 
+// Auth token in memory
+let authToken: string | null = null;
+
+function getHeaders(contentType = true): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (contentType) headers['Content-Type'] = 'application/json';
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  return headers;
+}
+
 function camelToSnake(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(camelToSnake);
   if (obj !== null && typeof obj === 'object') {
@@ -34,7 +44,7 @@ function camelToSnake(obj: unknown): unknown {
 async function apiGet(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] GET', url);
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: getHeaders(false) });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const data = await res.json();
   return camelToSnake(data);
@@ -45,7 +55,7 @@ async function apiPost(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] POST', url);
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -58,7 +68,7 @@ async function apiPut(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] PUT', url);
   const res = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -69,7 +79,7 @@ async function apiPut(path: string, body: unknown): Promise<unknown> {
 async function apiDelete(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] DELETE', url);
-  const res = await fetch(url, { method: 'DELETE' });
+  const res = await fetch(url, { method: 'DELETE', headers: getHeaders(false) });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const data = await res.json();
   return camelToSnake(data);
@@ -78,6 +88,16 @@ async function apiDelete(path: string): Promise<unknown> {
 try {
   contextBridge.exposeInMainWorld('api', {
     appVersion,
+
+    // Auth
+    setAuthToken: (token: string) => { authToken = token; },
+    clearAuthToken: () => { authToken = null; },
+    login: (username: string, password: string) => apiPost('/auth/login', { username, password }),
+    getMe: () => apiGet('/auth/me'),
+    getUsers: () => apiGet('/users'),
+    createUser: (dto: { username: string; password: string; role: string }) => apiPost('/users', dto),
+    updateUser: (id: number, dto: Partial<{ username: string; password: string; role: string; is_active: boolean }>) => apiPut(`/users/${id}`, dto),
+    deleteUser: (id: number) => apiDelete(`/users/${id}`),
 
     // Auto-updater
     checkForUpdates: () => ipcRenderer.send('check-for-updates'),
