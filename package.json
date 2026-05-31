@@ -16,14 +16,12 @@
     "pack": "vite build && npm run build:electron && electron-builder --dir",
     "release": "node scripts/release.js",
     "vite:dev": "vite",
-    "electron:dev": "vite build && npm run build:electron && electron .",
-    "dev:win": "vite build && npm run build:electron && electron-builder --dir --win nsis && start release/win-unpacked/NominaCore.exe"
+    "electron:dev": "vite build && npm run build:electron && electron ."
   },
   "build": {
     "appId": "com.valentini.assistant",
     "productName": "NominaCore",
     "directories": {
-      "buildResources": "build",
       "output": "release"
     },
     "files": [
@@ -33,8 +31,7 @@
     ],
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false,
-      "icon": "build/icon.ico"
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -60,8 +57,7 @@
     "react-router-dom": "^6.26.0",
     "sql.js": "^1.11.0",
     "xlsx": "^0.18.5",
-    "xlsx-js-style": "^1.2.0",
-    "zustand": "^5.0.14"
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -72,11 +68,8 @@
     "@vitejs/plugin-react": "^4.3.1",
     "electron": "29.4.6",
     "electron-builder": "^26.8.1",
-    "jimp": "^1.6.1",
-    "png-to-ico": "^3.0.1",
-    "to-ico-cli": "^1.0.0",
     "tsx": "^4.22.3",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vite": "^5.4.2"
   }
 }

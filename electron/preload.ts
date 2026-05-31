@@ -1,32 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import path from 'path';
-import fs from 'fs';
 
 // Backend URL - hardcoded for reliability in preload context
 const BACKEND_URL = process.env.VALENTINI_API_URL || 'https://nominacore-api.onrender.com/api';
 
 console.log('[Preload] Starting... URL:', BACKEND_URL);
-
-// Read app version from package.json
-let appVersion = 'unknown';
-try {
-  const pkgPath = path.join(__dirname, '..', 'package.json');
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  appVersion = pkg.version || 'unknown';
-} catch {
-  appVersion = 'unknown';
-}
-console.log('[Preload] App version:', appVersion);
-
-// Auth token in memory
-let authToken: string | null = null;
-
-function getHeaders(contentType = true): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (contentType) headers['Content-Type'] = 'application/json';
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  return headers;
-}
 
 function camelToSnake(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(camelToSnake);
@@ -44,7 +21,7 @@ function camelToSnake(obj: unknown): unknown {
 async function apiGet(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] GET', url);
-  const res = await fetch(url, { headers: getHeaders(false) });
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const data = await res.json();
   return camelToSnake(data);
@@ -55,7 +32,7 @@ async function apiPost(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] POST', url);
   const res = await fetch(url, {
     method: 'POST',
-    headers: getHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -68,7 +45,7 @@ async function apiPut(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] PUT', url);
   const res = await fetch(url, {
     method: 'PUT',
-    headers: getHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -79,7 +56,7 @@ async function apiPut(path: string, body: unknown): Promise<unknown> {
 async function apiDelete(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] DELETE', url);
-  const res = await fetch(url, { method: 'DELETE', headers: getHeaders(false) });
+  const res = await fetch(url, { method: 'DELETE' });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const data = await res.json();
   return camelToSnake(data);
@@ -87,18 +64,6 @@ async function apiDelete(path: string): Promise<unknown> {
 
 try {
   contextBridge.exposeInMainWorld('api', {
-    appVersion,
-
-    // Auth
-    setAuthToken: (token: string) => { authToken = token; },
-    clearAuthToken: () => { authToken = null; },
-    login: (username: string, password: string) => apiPost('/auth/login', { username, password }),
-    getMe: () => apiGet('/auth/me'),
-    getUsers: () => apiGet('/users'),
-    createUser: (dto: { username: string; password: string; role: string }) => apiPost('/users', dto),
-    updateUser: (id: number, dto: Partial<{ username: string; password: string; role: string; is_active: boolean }>) => apiPut(`/users/${id}`, dto),
-    deleteUser: (id: number) => apiDelete(`/users/${id}`),
-
     // Auto-updater
     checkForUpdates: () => ipcRenderer.send('check-for-updates'),
     quitAndInstall: () => ipcRenderer.send('quit-and-install'),
