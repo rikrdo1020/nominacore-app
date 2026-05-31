@@ -96,12 +96,9 @@ export default function RateRules() {
           min={min}
           max={max}
           value={value}
-          onChange={e => {
-            onChange(e.target.value);
-            update(rule.id, field, e.target.value);
-          }}
+          onChange={e => onChange(e.target.value)}
+          onBlur={e => update(rule.id, field, e.target.value)}
           style={{ width }}
-          disabled={loading}
         />
       )}
     />

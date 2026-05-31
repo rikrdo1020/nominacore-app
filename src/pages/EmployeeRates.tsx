@@ -258,12 +258,10 @@ export default function EmployeeRates() {
                             <input
                               type="number" step="0.5" min="0" max="24"
                               value={value}
-                              onChange={e => {
-                                onChange(e.target.value);
-                                isCustom && updateRate(day.dow, 'max_regular_hours', e.target.value);
-                              }}
+                              onChange={e => onChange(e.target.value)}
+                              onBlur={e => isCustom && updateRate(day.dow, 'max_regular_hours', e.target.value)}
                               style={{ width: 80 }}
-                              disabled={loading || !isCustom}
+                              disabled={!isCustom}
                             />
                           )}
                         />
@@ -276,12 +274,10 @@ export default function EmployeeRates() {
                             <input
                               type="number" step="0.01" min="0"
                               value={value}
-                              onChange={e => {
-                                onChange(e.target.value);
-                                isCustom && updateRate(day.dow, 'regular_rate', e.target.value);
-                              }}
+                              onChange={e => onChange(e.target.value)}
+                              onBlur={e => isCustom && updateRate(day.dow, 'regular_rate', e.target.value)}
                               style={{ width: 100 }}
-                              disabled={loading || !isCustom}
+                              disabled={!isCustom}
                             />
                           )}
                         />
@@ -294,12 +290,10 @@ export default function EmployeeRates() {
                             <input
                               type="number" step="0.01" min="0"
                               value={value}
-                              onChange={e => {
-                                onChange(e.target.value);
-                                isCustom && updateRate(day.dow, 'overtime_rate', e.target.value);
-                              }}
+                              onChange={e => onChange(e.target.value)}
+                              onBlur={e => isCustom && updateRate(day.dow, 'overtime_rate', e.target.value)}
                               style={{ width: 100 }}
-                              disabled={loading || !isCustom}
+                              disabled={!isCustom}
                             />
                           )}
                         />
@@ -312,12 +306,10 @@ export default function EmployeeRates() {
                             <input
                               type="number" step="0.01" min="0" max="24"
                               value={value}
-                              onChange={e => {
-                                onChange(e.target.value);
-                                isCustom && updateRate(day.dow, 'lunch_duration', e.target.value);
-                              }}
+                              onChange={e => onChange(e.target.value)}
+                              onBlur={e => isCustom && updateRate(day.dow, 'lunch_duration', e.target.value)}
                               style={{ width: 100 }}
-                              disabled={loading || !isCustom}
+                              disabled={!isCustom}
                             />
                           )}
                         />
