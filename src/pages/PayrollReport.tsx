@@ -120,11 +120,11 @@ export default function PayrollReport() {
     return formatDateWithDay(dateStr);
   };
 
-  const formatDollar = (val: number): string => {
-    return '$' + val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const formatNumber = (val: number): string => {
+    return val.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  const thinBorder = {
+const thinBorder = {
     top: { style: 'thin' as any, color: { rgb: '000000' } },
     bottom: { style: 'thin' as any, color: { rgb: '000000' } },
     left: { style: 'thin' as any, color: { rgb: '000000' } },
@@ -151,11 +151,27 @@ export default function PayrollReport() {
 
   const buildWorkbook = (reports: (PayrollReportData & { employee_name?: string })[]) => {
     const aoa: any[][] = [];
-    const totalCols = 11;
+    const FIXED_COLS = 9; // Fecha, Entrada, Salida, Horas, H.Reg, H.Extra, P.Reg, P.Extra, Total Día
+
+    const applyStyleToRow = (ws: any, row: number, colCount: number, style: object) => {
+      for (let C = 0; C < colCount; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: row, c: C });
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        if (!ws[cellRef].s) ws[cellRef].s = {};
+        Object.assign(ws[cellRef].s, style);
+      }
+    };
+
+    const sectionMeta: Array<{ totalCols: number; numDataRows: number }> = [];
 
     reports.forEach((r) => {
       const fullName = r.employee_name || employees.find(e => e.id === r.employee_id)?.name || `Empleado ${r.employee_id}`;
       const allDates = getDatesInRange(r.period_start, r.period_end);
+
+      const deductionTypes = [...new Set(r.deductions.map(d => d.type))].sort();
+      // +1 for the empty "Neto a Pagar" column
+      const totalCols = FIXED_COLS + deductionTypes.length + 1;
+      sectionMeta.push({ totalCols, numDataRows: allDates.length });
 
       // Título del empleado
       aoa.push([fullName]);
@@ -163,14 +179,22 @@ export default function PayrollReport() {
       // Encabezados
       aoa.push([
         'Fecha', 'Entrada', 'Salida', 'Horas',
-        'H. Regulares', 'H. Extra', 'Pago Regular', 'Pago Extra',
-        'Total Día', 'Descuentos', 'Neto Día'
+        'H. Regulares', 'H. Extra', 'Pago Regular', 'Pago Extra', 'Total Día',
+        ...deductionTypes,
+        'Neto a Pagar',
       ]);
 
       // Filas de datos (todas las fechas del período)
       allDates.forEach((dateStr) => {
         const db = r.daily_breakdown?.find(d => d.date === dateStr);
         const wr = r.work_records?.find(w => w.date === dateStr);
+
+        const deductionCols = deductionTypes.map(type => {
+          const sum = r.deductions
+            .filter(d => d.date === dateStr && d.type === type)
+            .reduce((acc, d) => acc + d.amount, 0);
+          return sum > 0 ? formatNumber(sum) : '0.00';
+        });
 
         if (db) {
           const hours = wr?.is_direct_entry
@@ -184,11 +208,11 @@ export default function PayrollReport() {
             hours,
             db.regular_hours.toFixed(2),
             db.overtime_hours.toFixed(2),
-            formatDollar(db.regular_pay),
-            formatDollar(db.overtime_pay),
-            formatDollar(db.daily_total),
-            formatDollar(db.deductions),
-            formatDollar(db.daily_total - db.deductions),
+            formatNumber(db.regular_pay),
+            formatNumber(db.overtime_pay),
+            formatNumber(db.daily_total),
+            ...deductionCols,
+            '',
           ]);
         } else if (wr) {
           const hours = wr.is_direct_entry
@@ -200,36 +224,39 @@ export default function PayrollReport() {
             formatTime12Hour(wr.entry_time),
             formatTime12Hour(wr.exit_time),
             hours,
-            '0.00',
-            '0.00',
-            '$0.00',
-            '$0.00',
-            '$0.00',
-            '$0.00',
-            '$0.00',
+            '0.00', '0.00', '0.00', '0.00', '0.00',
+            ...deductionCols,
+            '',
           ]);
         } else {
           aoa.push([
             formatDateCell(dateStr),
             '-', '-', '-',
-            '0.00', '0.00',
-            '$0.00', '$0.00',
-            '$0.00', '$0.00',
-            '$0.00',
+            '0.00', '0.00', '0.00', '0.00', '0.00',
+            ...deductionCols,
+            '',
           ]);
         }
       });
 
       // Fila de totales del empleado
+      const dailyTotalSum = r.daily_breakdown?.reduce((sum, db) => sum + db.daily_total, 0) || 0;
+      const deductionTotals = deductionTypes.map(type => {
+        const total = r.deductions
+          .filter(d => d.type === type)
+          .reduce((acc, d) => acc + d.amount, 0);
+        return formatNumber(total);
+      });
+
       aoa.push([
         'TOTALES', '', '', '',
         r.total_regular_hours.toFixed(2),
         r.total_overtime_hours.toFixed(2),
-        formatDollar(r.regular_pay),
-        formatDollar(r.overtime_pay),
-        formatDollar(r.gross_pay),
-        formatDollar(r.total_deductions),
-        formatDollar(r.net_pay),
+        formatNumber(r.regular_pay),
+        formatNumber(r.overtime_pay),
+        formatNumber(dailyTotalSum),
+        ...deductionTotals,
+        formatNumber(r.net_pay),
       ]);
 
       // Separación entre empleados
@@ -239,65 +266,39 @@ export default function PayrollReport() {
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
+    const maxTotalCols = sectionMeta.reduce((max, m) => Math.max(max, m.totalCols), FIXED_COLS);
+
     // Forzar que el rango cubra todas las columnas de la tabla
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    range.e.c = Math.max(range.e.c, totalCols - 1);
+    range.e.c = Math.max(range.e.c, maxTotalCols - 1);
     ws['!ref'] = XLSX.utils.encode_range(range);
 
-    // Aplicar bordes a todas las celdas del rango
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-      for (let C = range.s.c; C < totalCols; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        if (!ws[cellRef].s) ws[cellRef].s = {};
-        ws[cellRef].s.border = thinBorder;
-      }
-    }
-
-    // Aplicar estilos específicos por sección
+    // Aplicar estilos por sección usando el totalCols de cada una
     let currentRow = 0;
-    reports.forEach((r) => {
-      const allDates = getDatesInRange(r.period_start, r.period_end);
-
-      // Título del empleado (negrita, fondo oscuro, texto blanco)
-      for (let C = 0; C < totalCols; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        if (!ws[cellRef].s) ws[cellRef].s = {};
-        Object.assign(ws[cellRef].s, titleStyle);
-      }
+    sectionMeta.forEach((meta) => {
+      applyStyleToRow(ws, currentRow, meta.totalCols, titleStyle);
       currentRow++;
 
-      // Headers de columna
-      for (let C = 0; C < totalCols; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        if (!ws[cellRef].s) ws[cellRef].s = {};
-        Object.assign(ws[cellRef].s, headerStyle);
-      }
+      applyStyleToRow(ws, currentRow, meta.totalCols, headerStyle);
       currentRow++;
 
-      // Saltar filas de datos
-      currentRow += allDates.length;
-
-      // Fila de totales
-      for (let C = 0; C < totalCols; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: currentRow, c: C });
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        if (!ws[cellRef].s) ws[cellRef].s = {};
-        Object.assign(ws[cellRef].s, totalStyle);
+      for (let i = 0; i < meta.numDataRows; i++) {
+        applyStyleToRow(ws, currentRow, meta.totalCols, { border: thinBorder });
+        currentRow++;
       }
+
+      applyStyleToRow(ws, currentRow, meta.totalCols, totalStyle);
       currentRow++;
 
-      // Saltar filas de separación
-      currentRow += 2;
+      currentRow += 2; // filas de separación
     });
 
     // Ajustar anchos de columna
+    const deductionColWidths = Array.from({ length: maxTotalCols - FIXED_COLS }, () => ({ wch: 14 }));
     ws['!cols'] = [
       { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
       { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 }
+      { wch: 12 }, ...deductionColWidths,
     ];
 
     const wb = XLSX.utils.book_new();
@@ -524,23 +525,23 @@ export default function PayrollReport() {
               </div>
               <div className="summary-item">
                 <div className="label">Pago Regular</div>
-                <div className="value">${report.regular_pay.toFixed(2)}</div>
+                <div className="value">{report.regular_pay.toFixed(2)}</div>
               </div>
               <div className="summary-item">
                 <div className="label">Pago Extra</div>
-                <div className="value">${report.overtime_pay.toFixed(2)}</div>
+                <div className="value">{report.overtime_pay.toFixed(2)}</div>
               </div>
               <div className="summary-item">
                 <div className="label">Subtotal</div>
-                <div className="value">${report.gross_pay.toFixed(2)}</div>
+                <div className="value">{report.gross_pay.toFixed(2)}</div>
               </div>
               <div className="summary-item">
                 <div className="label">Descuentos</div>
-                <div className="value negative">-${report.total_deductions.toFixed(2)}</div>
+                <div className="value negative">-{report.total_deductions.toFixed(2)}</div>
               </div>
               <div className="summary-item" style={{ background: '#1a1a2e', color: '#fff' }}>
                 <div className="label" style={{ color: '#aaa' }}>Neto a Pagar</div>
-                <div className="value positive" style={{ color: '#2ecc71' }}>${report.net_pay.toFixed(2)}</div>
+                <div className="value positive" style={{ color: '#2ecc71' }}>{report.net_pay.toFixed(2)}</div>
               </div>
             </div>
           </div>
@@ -558,32 +559,45 @@ export default function PayrollReport() {
                     <th>Pago Extra</th>
                     <th>Total Día</th>
                     <th>Descuentos</th>
-                    <th>Neto Día</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {report.daily_breakdown.map((db, idx) => (
-                    <tr key={idx}>
-                      <td>{formatDateWithDay(db.date)}</td>
-                      <td>{db.regular_hours.toFixed(2)}</td>
-                      <td>{db.overtime_hours.toFixed(2)}</td>
-                      <td>${db.regular_pay.toFixed(2)}</td>
-                      <td>${db.overtime_pay.toFixed(2)}</td>
-                      <td>${db.daily_total.toFixed(2)}</td>
-                      <td>${db.deductions.toFixed(2)}</td>
-                      <td style={{ fontWeight: 700 }}>${(db.daily_total - db.deductions).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                  <tr style={{ fontWeight: 700, background: '#f9f9f9' }}>
-                    <td>Totales</td>
-                    <td>{report.total_regular_hours.toFixed(2)}</td>
-                    <td>{report.total_overtime_hours.toFixed(2)}</td>
-                    <td>${report.regular_pay.toFixed(2)}</td>
-                    <td>${report.overtime_pay.toFixed(2)}</td>
-                    <td>${report.gross_pay.toFixed(2)}</td>
-                    <td>${report.total_deductions.toFixed(2)}</td>
-                    <td>${report.net_pay.toFixed(2)}</td>
-                  </tr>
+                  {report.daily_breakdown.map((db, idx) => {
+                    const dayDeductions = report.deductions.filter(d => d.date === db.date);
+                    return (
+                      <tr key={idx}>
+                        <td>{formatDateWithDay(db.date)}</td>
+                        <td>{db.regular_hours.toFixed(2)}</td>
+                        <td>{db.overtime_hours.toFixed(2)}</td>
+                        <td>{db.regular_pay.toFixed(2)}</td>
+                        <td>{db.overtime_pay.toFixed(2)}</td>
+                        <td>{db.daily_total.toFixed(2)}</td>
+                        <td>
+                          {dayDeductions.length > 0 ? (
+                            dayDeductions.map(d => (
+                              <div key={d.id}>{d.type}: {d.amount.toFixed(2)}</div>
+                            ))
+                          ) : (
+                            '0.00'
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(() => {
+                    const dailyTotalSum = report.daily_breakdown.reduce((sum, db) => sum + db.daily_total, 0);
+                    return (
+                      <tr style={{ fontWeight: 700, background: '#f9f9f9' }}>
+                        <td>Totales</td>
+                        <td>{report.total_regular_hours.toFixed(2)}</td>
+                        <td>{report.total_overtime_hours.toFixed(2)}</td>
+                        <td>{report.regular_pay.toFixed(2)}</td>
+                        <td>{report.overtime_pay.toFixed(2)}</td>
+                        <td>{dailyTotalSum.toFixed(2)}</td>
+                        <td>{report.total_deductions.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -634,13 +648,13 @@ export default function PayrollReport() {
                     <tr key={d.id}>
                       <td>{formatDateWithDay(d.date)}</td>
                       <td>{d.type}</td>
-                      <td>${d.amount.toFixed(2)}</td>
+                      <td>{d.amount.toFixed(2)}</td>
                       <td>{d.description || '-'}</td>
                     </tr>
                   ))}
                   <tr style={{ fontWeight: 700 }}>
                     <td colSpan={2}>Total Descuentos</td>
-                    <td>${report.total_deductions.toFixed(2)}</td>
+                    <td>{report.total_deductions.toFixed(2)}</td>
                     <td></td>
                   </tr>
                 </tbody>
