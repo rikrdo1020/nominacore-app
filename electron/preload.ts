@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Backend URL - hardcoded for reliability in preload context
-const BACKEND_URL = process.env.VALENTINI_API_URL || 'https://nominacore-api.onrender.com/api';
+const BACKEND_URL = process.env.VALENTINI_API_URL || 'https://nominacore-api-production.up.railway.app/api';
 
 console.log('[Preload] Starting... URL:', BACKEND_URL);
 

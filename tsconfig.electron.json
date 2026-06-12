@@ -12,7 +12,8 @@
     "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node"]
   },
   "include": ["electron/**/*.ts", "electron/**/*.d.ts"],
   "exclude": ["node_modules"]
