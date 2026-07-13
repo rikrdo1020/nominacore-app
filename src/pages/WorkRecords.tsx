@@ -88,8 +88,8 @@ export default function WorkRecords() {
       await window.api.addWorkRecord(record);
       showSuccess('Registro guardado correctamente');
       reset({
-        employee_id: '',
-        date: new Date().toISOString().split('T')[0],
+        employee_id: data.employee_id,
+        date: data.date,
         is_direct_entry: false,
         entry_time: '08:00',
         exit_time: '17:00',

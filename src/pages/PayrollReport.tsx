@@ -149,6 +149,12 @@ const thinBorder = {
     border: thinBorder,
   };
 
+  const grandTotalStyle = {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
+    fill: { patternType: 'solid' as any, fgColor: { rgb: '0F3460' } },
+    border: thinBorder,
+  };
+
   const buildWorkbook = (reports: (PayrollReportData & { employee_name?: string })[]) => {
     const aoa: any[][] = [];
     const FIXED_COLS = 9; // Fecha, Entrada, Salida, Horas, H.Reg, H.Extra, P.Reg, P.Extra, Total Día
@@ -264,9 +270,21 @@ const thinBorder = {
       aoa.push([]);
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
     const maxTotalCols = sectionMeta.reduce((max, m) => Math.max(max, m.totalCols), FIXED_COLS);
+
+    // Totales de quincena (solo cuando se exportan varios empleados)
+    let hasGrandTotals = false;
+    if (reports.length > 1) {
+      hasGrandTotals = true;
+      const grandDailyTotal = reports.reduce((sum, r) =>
+        sum + (r.daily_breakdown?.reduce((s, db) => s + db.daily_total, 0) || 0), 0);
+      const grandNetPay = reports.reduce((sum, r) => sum + r.net_pay, 0);
+
+      aoa.push(['TOTAL QUINCENA', '', '', '', '', '', '', '', formatNumber(grandDailyTotal)]);
+      aoa.push(['TOTAL QUINCENA CON DESCUENTOS (NETO A PAGAR)', '', '', '', '', '', '', '', formatNumber(grandNetPay)]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     // Forzar que el rango cubra todas las columnas de la tabla
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -292,6 +310,21 @@ const thinBorder = {
 
       currentRow += 2; // filas de separación
     });
+
+    if (hasGrandTotals) {
+      applyStyleToRow(ws, currentRow, maxTotalCols, grandTotalStyle);
+      const row1 = currentRow;
+      currentRow++;
+      applyStyleToRow(ws, currentRow, maxTotalCols, grandTotalStyle);
+      const row2 = currentRow;
+      currentRow++;
+
+      ws['!merges'] = ws['!merges'] || [];
+      ws['!merges'].push(
+        { s: { r: row1, c: 0 }, e: { r: row1, c: 7 } },
+        { s: { r: row2, c: 0 }, e: { r: row2, c: 7 } },
+      );
+    }
 
     // Ajustar anchos de columna
     const deductionColWidths = Array.from({ length: maxTotalCols - FIXED_COLS }, () => ({ wch: 14 }));
