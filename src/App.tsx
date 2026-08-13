@@ -7,6 +7,7 @@ import WorkRecords from './pages/WorkRecords';
 import Deductions from './pages/Deductions';
 import PayrollReport from './pages/PayrollReport';
 import UpdateNotification from './components/UpdateNotification';
+import { version } from '../package.json';
 import './App.css';
 
 export default function App() {
@@ -32,6 +33,9 @@ export default function App() {
           <li><NavLink to="/reports" className={({ isActive }) => isActive ? 'active' : ''}>Reporte de Pago</NavLink></li>
         </ul>
 
+        <div style={{ textAlign: 'center', padding: '8px 4px', fontSize: 10, color: '#2e3252', userSelect: 'none' }}>
+          {sidebarOpen ? `v${version}` : ''}
+        </div>
       </nav>
       <main className="main-content">
         <Routes>

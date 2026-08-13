@@ -20,6 +20,8 @@ export default function Deductions() {
   const [deductions, setDeductions] = useState<Deduction[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filterEmp, setFilterEmp] = useState('');
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
 
@@ -44,7 +46,7 @@ export default function Deductions() {
       if (window.api) {
         const [emps, deds] = await Promise.all([
           window.api.getEmployees(),
-          window.api.getDeductions(filterEmp ? Number(filterEmp) : null),
+          window.api.getDeductions(filterEmp ? Number(filterEmp) : null, filterStart || undefined, filterEnd || undefined),
         ]);
         setEmployees(emps);
         setDeductions(deds);
@@ -59,7 +61,7 @@ export default function Deductions() {
   };
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { load(); }, [filterEmp]);
+  useEffect(() => { load(); }, [filterEmp, filterStart, filterEnd]);
 
   const onSubmit = async (data: DeductionForm) => {
     if (!data.employee_id || !data.amount) return;
@@ -75,7 +77,7 @@ export default function Deductions() {
       });
       showSuccess('Descuento registrado correctamente');
       reset({
-        employee_id: '',
+        employee_id: data.employee_id,
         date: new Date().toISOString().split('T')[0],
         type: 'Comida',
         amount: '',
@@ -166,6 +168,21 @@ export default function Deductions() {
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
+          <div className="form-group">
+            <label>Desde</label>
+            <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Hasta</label>
+            <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
+          </div>
+          {(filterStart || filterEnd) && (
+            <div className="form-group" style={{ alignSelf: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => { setFilterStart(''); setFilterEnd(''); }}>
+                Limpiar fechas
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="card">
