@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import type { Resolver } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addWorkRecord } from '../lib/api/work-records';
+import { addHoursToTime, calcHours, formatMonthYear, getWeekDates } from '../utils/time';
 import type { WorkRecord } from '../types/api';
 
 export interface WorkRecordFormValues {
@@ -38,9 +40,19 @@ const schema = yup.object({
   notes: yup.string(),
 });
 
+function today(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 const defaultValues: WorkRecordFormValues = {
   employee_id: '',
-  date: new Date().toISOString().split('T')[0],
+  date: today(),
   is_direct_entry: false,
   entry_time: '08:00',
   exit_time: '17:00',
@@ -48,22 +60,40 @@ const defaultValues: WorkRecordFormValues = {
   notes: '',
 };
 
-export function useWorkRecordForm() {
+export function useWorkRecordForm(employeeId: string) {
   const queryClient = useQueryClient();
+  const [justSaved, setJustSaved] = useState(false);
 
   const {
     register,
     handleSubmit,
     reset,
     setValue,
+    setFocus,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<WorkRecordFormValues>({
     resolver: yupResolver(schema) as unknown as Resolver<WorkRecordFormValues>,
-    defaultValues,
+    defaultValues: { ...defaultValues, employee_id: employeeId },
   });
 
   const isDirectEntry = watch('is_direct_entry');
+  const entryTime = watch('entry_time');
+  const exitTime = watch('exit_time');
+  const directHours = watch('direct_hours');
+  const date = watch('date');
+
+  const computedHours = isDirectEntry
+    ? (directHours && parseFloat(directHours) > 0 ? parseFloat(directHours).toFixed(2) : null)
+    : (entryTime && exitTime ? calcHours(entryTime, exitTime) : null);
+
+  const weekDays = getWeekDates(date);
+  const monthLabel = formatMonthYear(date);
+
+  // Switching to a different employee starts a fresh entry for them.
+  useEffect(() => {
+    if (employeeId) reset({ ...defaultValues, employee_id: employeeId });
+  }, [employeeId, reset]);
 
   const createMutation = useMutation({
     mutationFn: (values: WorkRecordFormValues) => {
@@ -80,7 +110,17 @@ export function useWorkRecordForm() {
     },
     onSuccess: (_data, values) => {
       queryClient.invalidateQueries({ queryKey: ['workRecords'] });
-      reset({ ...defaultValues, employee_id: values.employee_id, date: values.date });
+      // Keep the same employee and advance one day so a full week can be
+      // entered back-to-back without re-touching employee/date each time.
+      reset({
+        ...defaultValues,
+        employee_id: values.employee_id,
+        date: addDays(values.date, 1),
+        is_direct_entry: values.is_direct_entry,
+      });
+      setFocus(values.is_direct_entry ? 'direct_hours' : 'entry_time');
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2200);
     },
   });
 
@@ -94,12 +134,31 @@ export function useWorkRecordForm() {
 
   const submitError = createMutation.isError ? 'Error al guardar registro' : null;
 
+  const selectDay = (iso: string) => setValue('date', iso, { shouldValidate: true });
+  const shiftWeek = (dir: 1 | -1) => setValue('date', addDays(date, dir * 7), { shouldValidate: true });
+  const jumpToDate = (iso: string) => setValue('date', iso, { shouldValidate: true });
+  const applyHoursPreset = (hours: number) => setValue('direct_hours', String(hours), { shouldValidate: true });
+  const applyEntryPreset = (time: string) => setValue('entry_time', time, { shouldValidate: true });
+  const applyExitDurationPreset = (hours: number) =>
+    setValue('exit_time', addHoursToTime(entryTime || '08:00', hours), { shouldValidate: true });
+
   return {
     register,
     onSubmit,
     errors,
-    setValue,
     isDirectEntry,
+    setValue,
+    date,
+    weekDays,
+    monthLabel,
+    selectDay,
+    shiftWeek,
+    jumpToDate,
+    computedHours,
+    applyHoursPreset,
+    applyEntryPreset,
+    applyExitDurationPreset,
+    justSaved,
     isSubmitting: isSubmitting || createMutation.isPending,
     submitError,
   };

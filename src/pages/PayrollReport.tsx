@@ -36,8 +36,8 @@ export default function PayrollReport() {
         <form onSubmit={onSubmit} noValidate>
           <div className="form-row">
             <div className="form-group" style={{ minWidth: 260 }}>
-              <label>Empleado</label>
-              <select {...register('selectedEmp')} disabled={isBusy}>
+              <label>Empleado<span className="required">*</span></label>
+              <select {...register('selectedEmp')} className="custom-input" disabled={isBusy}>
                 <option value="">{employeesLoading ? 'Cargando empleados...' : 'Seleccione...'}</option>
                 {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>
@@ -46,37 +46,37 @@ export default function PayrollReport() {
           </div>
 
           <div className="form-row" style={{ gap: 16, alignItems: 'stretch' }}>
-            <div style={{ flex: 1, borderLeft: '3px solid #0f3460', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
+            <div style={{ flex: 1, borderLeft: '3px solid #0f3460', background: '#f8fafc', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0f3460', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 🕐 Período de Horas Trabajadas
               </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <div className="form-group">
                   <label>Desde</label>
-                  <input type="date" {...register('workStartDate')} disabled={isBusy} />
+                  <input type="date" {...register('workStartDate')} className="custom-input" disabled={isBusy} />
                   {errors.workStartDate && <span className="field-error">{errors.workStartDate.message}</span>}
                 </div>
                 <div className="form-group">
                   <label>Hasta</label>
-                  <input type="date" {...register('workEndDate')} disabled={isBusy} />
+                  <input type="date" {...register('workEndDate')} className="custom-input" disabled={isBusy} />
                   {errors.workEndDate && <span className="field-error">{errors.workEndDate.message}</span>}
                 </div>
               </div>
             </div>
 
-            <div style={{ flex: 1, borderLeft: '3px solid #e94560', background: '#fff5f5', borderRadius: 8, padding: 14 }}>
+            <div style={{ flex: 1, borderLeft: '3px solid #e94560', background: '#fff5f5', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#e94560', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 💸 Período de Descuentos
               </div>
               <div className="form-row" style={{ marginBottom: 0 }}>
                 <div className="form-group">
                   <label>Desde</label>
-                  <input type="date" {...register('deductionStartDate')} disabled={isBusy} />
+                  <input type="date" {...register('deductionStartDate')} className="custom-input" disabled={isBusy} />
                   {errors.deductionStartDate && <span className="field-error">{errors.deductionStartDate.message}</span>}
                 </div>
                 <div className="form-group">
                   <label>Hasta</label>
-                  <input type="date" {...register('deductionEndDate')} disabled={isBusy} />
+                  <input type="date" {...register('deductionEndDate')} className="custom-input" disabled={isBusy} />
                   {errors.deductionEndDate && <span className="field-error">{errors.deductionEndDate.message}</span>}
                 </div>
               </div>
@@ -84,77 +84,34 @@ export default function PayrollReport() {
           </div>
 
           <div className="form-row" style={{ marginTop: 4 }}>
-            <button type="submit" className="btn btn-primary" disabled={isBusy}>
+            <button type="submit" className="btn-pill-primary" disabled={isBusy}>
               {isBusy ? <span className="spinner" /> : 'Generar Reporte'}
             </button>
 
-            <div className="form-group" style={{ position: 'relative', minWidth: 220 }} ref={actionRef}>
+            <div className="form-group" style={{ minWidth: 240 }}>
               <label>Opciones</label>
-              <div
-                className="custom-dropdown"
-                onClick={() => setActionOpen(!actionOpen)}
-                style={{
-                  border: '1px solid #ccc',
-                  borderRadius: 4,
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  background: '#fff',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  userSelect: 'none',
-                }}
-              >
-                <span>{actionLabels[selectedAction || '']}</span>
-                <span style={{ transform: actionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
-              </div>
-              {actionOpen && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: '#fff',
-                  border: '1px solid #ccc',
-                  borderRadius: 4,
-                  marginTop: 4,
-                  zIndex: 10,
-                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                }}>
-                  {report && (
-                    <>
-                      <div
-                        className="dropdown-item"
-                        onClick={() => handleActionChange('print')}
-                        style={{ padding: '8px 12px', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                      >
-                        Imprimir
-                      </div>
-                      <div
-                        className="dropdown-item"
-                        onClick={() => handleActionChange('export-individual')}
-                        style={{ padding: '8px 12px', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                      >
-                        Exportar Excel Individual
-                      </div>
-                      <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
-                    </>
-                  )}
-                  <div
-                    className="dropdown-item"
-                    onClick={() => handleActionChange('export-all')}
-                    style={{ padding: '8px 12px', cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                  >
-                    {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
-                  </div>
+              <div className={`action-menu${actionOpen ? ' open' : ''}`} ref={actionRef}>
+                <div className="action-menu-trigger" onClick={() => setActionOpen(!actionOpen)}>
+                  <span>{actionLabels[selectedAction || '']}</span>
+                  <span className="chevron">▾</span>
                 </div>
-              )}
+                {actionOpen && (
+                  <div className="action-menu-panel">
+                    {report && (
+                      <>
+                        <div className="action-menu-item" onClick={() => handleActionChange('print')}>Imprimir</div>
+                        <div className="action-menu-item" onClick={() => handleActionChange('export-individual')}>
+                          Exportar Excel Individual
+                        </div>
+                        <div className="action-menu-divider" />
+                      </>
+                    )}
+                    <div className="action-menu-item" onClick={() => handleActionChange('export-all')}>
+                      {exportingAll ? 'Generando...' : 'Exportar Excel Todos'}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </form>

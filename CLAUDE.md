@@ -3,6 +3,13 @@
 Electron + React renderer. These rules apply to every feature added under
 `src/` in this project.
 
+## Visual design
+
+Follow [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for colors, layout, buttons,
+form controls, and the pill/week-strip/employee-first patterns. Read it
+before styling any new screen — don't introduce new one-off CSS patterns
+when an existing class in `App.css` already covers the case.
+
 ## Hard rules
 
 1. **No raw `window.api` (or `fetch`) calls inside components.** Every call
