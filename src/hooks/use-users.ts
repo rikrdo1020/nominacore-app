@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { deleteUser, getUsers } from '../lib/api/users';
+import { deleteUser, getUsers, resetUserPassword } from '../lib/api/users';
 import { queryKeys } from '../lib/query-keys';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +24,18 @@ export function useUsers() {
     deleteMutation.mutate(id);
   };
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: (id: number) => resetUserPassword(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.list });
+    },
+  });
+
+  const resetPassword = (id: number, username: string) => {
+    if (!window.confirm(`¿Restablecer la contraseña de "${username}"?`)) return;
+    resetPasswordMutation.mutate(id);
+  };
+
   return {
     users: usersQuery.data ?? [],
     isLoading: usersQuery.isLoading,
@@ -40,6 +52,16 @@ export function useUsers() {
       ? deleteMutation.error instanceof Error
         ? deleteMutation.error.message
         : 'No se pudo desactivar el usuario'
+      : null,
+    resetPassword,
+    isResetting: resetPasswordMutation.isPending,
+    resettingId: (resetPasswordMutation.variables as number | undefined) ?? null,
+    resetCredentials: resetPasswordMutation.data ?? null,
+    clearResetCredentials: () => resetPasswordMutation.reset(),
+    resetError: resetPasswordMutation.isError
+      ? resetPasswordMutation.error instanceof Error
+        ? resetPasswordMutation.error.message
+        : 'No se pudo restablecer la contraseña'
       : null,
   };
 }

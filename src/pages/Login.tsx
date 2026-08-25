@@ -1,4 +1,5 @@
 import { useLoginForm } from '../hooks/use-login-form';
+import PasswordInput from '../components/PasswordInput';
 import './Login.css';
 
 export default function Login() {
@@ -34,9 +35,8 @@ export default function Login() {
 
           <div className="form-group">
             <label htmlFor="password">Contraseña</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               disabled={isSubmitting}
               {...register('password')}

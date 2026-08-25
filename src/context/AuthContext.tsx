@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.api.setAuthToken(accessToken);
       setToken(accessToken);
       setUser(loggedInUser);
-      navigate('/employees', { replace: true });
+      navigate(loggedInUser.mustChangePassword ? '/change-password' : '/employees', { replace: true });
     },
   });
 

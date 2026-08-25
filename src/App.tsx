@@ -9,6 +9,7 @@ import Deductions from './pages/Deductions';
 import DeductionsBulkUpload from './pages/DeductionsBulkUpload';
 import PayrollReport from './pages/PayrollReport';
 import Login from './pages/Login';
+import ChangePassword from './pages/ChangePassword';
 import Users from './pages/Users';
 import UpdateNotification from './components/UpdateNotification';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,6 +22,13 @@ function LoginRoute() {
   if (isLoading) return null;
   if (isAuthenticated) return <Navigate to="/employees" replace />;
   return <Login />;
+}
+
+function ChangePasswordRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <ChangePassword />;
 }
 
 function AppLayout() {
@@ -95,6 +103,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/change-password" element={<ChangePasswordRoute />} />
       <Route
         path="/*"
         element={

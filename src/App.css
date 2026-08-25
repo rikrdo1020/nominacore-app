@@ -68,6 +68,16 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 }
 .form-group input:focus, .form-group select:focus { outline: none; border-color: #0f3460; }
 
+.password-input-wrapper { position: relative; display: flex; width: 100%; }
+.password-input-wrapper input { width: 100%; padding-right: 40px; }
+.password-toggle-btn {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; padding: 4px; cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center; color: #888;
+}
+.password-toggle-btn:hover { color: #555; background: #eef1f5; }
+.password-toggle-btn svg { width: 18px; height: 18px; }
+
 .btn {
   padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500;
   cursor: pointer; transition: background 0.15s, opacity 0.15s; display: inline-flex; align-items: center; gap: 6px;

@@ -1,10 +1,26 @@
 import { useUsers } from '../hooks/use-users';
 import { useCreateUserForm } from '../hooks/use-create-user-form';
 import { formatDateTimeDay } from '../utils/time';
+import CredentialsModal from '../components/CredentialsModal';
 
 export default function Users() {
-  const { users, isLoading, loadError, currentUserId, removeUser, isDeleting, deletingId, deleteError } = useUsers();
-  const { register, onSubmit, errors, isSubmitting, submitError } = useCreateUserForm();
+  const {
+    users,
+    isLoading,
+    loadError,
+    currentUserId,
+    removeUser,
+    isDeleting,
+    deletingId,
+    deleteError,
+    resetPassword,
+    isResetting,
+    resettingId,
+    resetCredentials,
+    clearResetCredentials,
+    resetError,
+  } = useUsers();
+  const { register, onSubmit, errors, isSubmitting, submitError, credentials, clearCredentials } = useCreateUserForm();
 
   return (
     <div>
@@ -22,11 +38,6 @@ export default function Users() {
               {errors.username && <span className="field-error">{errors.username.message}</span>}
             </div>
             <div className="form-group">
-              <label htmlFor="new-password">Contraseña</label>
-              <input id="new-password" type="password" placeholder="••••••" disabled={isSubmitting} {...register('password')} />
-              {errors.password && <span className="field-error">{errors.password.message}</span>}
-            </div>
-            <div className="form-group">
               <label htmlFor="new-role">Rol</label>
               <select id="new-role" disabled={isSubmitting} {...register('role')}>
                 <option value="ADMIN">Administrador</option>
@@ -37,12 +48,34 @@ export default function Users() {
               {isSubmitting ? <span className="spinner" /> : 'Crear usuario'}
             </button>
           </div>
+          <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+            La contraseña se genera automáticamente al crear el usuario.
+          </p>
           {submitError && <div className="alert alert-error">{submitError}</div>}
         </form>
       </div>
 
+      {credentials && (
+        <CredentialsModal
+          title="Usuario creado"
+          username={credentials.username}
+          password={credentials.tempPassword}
+          onClose={clearCredentials}
+        />
+      )}
+
+      {resetCredentials && (
+        <CredentialsModal
+          title="Contraseña restablecida"
+          username={resetCredentials.username}
+          password={resetCredentials.tempPassword}
+          onClose={clearResetCredentials}
+        />
+      )}
+
       <div className="card">
         {deleteError && <div className="alert alert-error">{deleteError}</div>}
+        {resetError && <div className="alert alert-error">{resetError}</div>}
         {isLoading ? (
           <div className="empty-state">
             <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
@@ -60,7 +93,7 @@ export default function Users() {
                 <th>Rol</th>
                 <th>Estado</th>
                 <th>Creado</th>
-                <th style={{ width: 130 }}>Acciones</th>
+                <th style={{ width: 220 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -75,6 +108,13 @@ export default function Users() {
                   </td>
                   <td>{formatDateTimeDay(u.createdAt)}</td>
                   <td className="actions">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={isResetting && resettingId === u.id}
+                      onClick={() => resetPassword(u.id, u.username)}
+                    >
+                      {isResetting && resettingId === u.id ? <span className="spinner" /> : 'Restablecer contraseña'}
+                    </button>
                     <button
                       className="btn btn-danger btn-sm"
                       disabled={u.id === currentUserId || !u.isActive || (isDeleting && deletingId === u.id)}

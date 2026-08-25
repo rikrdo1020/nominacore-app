@@ -10,3 +10,7 @@ export function login(username: string, password: string): Promise<LoginResponse
 export function getMe(): Promise<AuthUser> {
   return window.api.getMe();
 }
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
+  return window.api.changePassword(currentPassword, newPassword);
+}

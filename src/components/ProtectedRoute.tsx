@@ -22,6 +22,10 @@ export default function ProtectedRoute({ children, superAdminOnly = false }: Pro
     return <Navigate to="/login" replace />;
   }
 
+  if (user?.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (superAdminOnly && user?.role !== 'SUPER_ADMIN') {
     return <Navigate to="/employees" replace />;
   }

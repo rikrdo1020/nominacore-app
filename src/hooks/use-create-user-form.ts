@@ -8,20 +8,18 @@ import type { UserRole } from '../types/api';
 
 interface CreateUserFormValues {
   username: string;
-  password: string;
   role: UserRole;
 }
 
 const schema = yup.object({
   username: yup.string().trim().min(3, 'Mínimo 3 caracteres').required('El usuario es requerido'),
-  password: yup.string().min(6, 'Mínimo 6 caracteres').required('La contraseña es requerida'),
   role: yup
     .mixed<UserRole>()
     .oneOf(['SUPER_ADMIN', 'ADMIN'])
     .required('El rol es requerido'),
 });
 
-const defaultValues: CreateUserFormValues = { username: '', password: '', role: 'ADMIN' };
+const defaultValues: CreateUserFormValues = { username: '', role: 'ADMIN' };
 
 export function useCreateUserForm() {
   const queryClient = useQueryClient();
@@ -38,7 +36,7 @@ export function useCreateUserForm() {
 
   const createMutation = useMutation({
     mutationFn: (values: CreateUserFormValues) =>
-      createUser({ username: values.username.trim(), password: values.password, role: values.role }),
+      createUser({ username: values.username.trim(), role: values.role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.list });
       reset(defaultValues);
@@ -65,5 +63,7 @@ export function useCreateUserForm() {
     errors,
     isSubmitting: isSubmitting || createMutation.isPending,
     submitError,
+    credentials: createMutation.data ?? null,
+    clearCredentials: () => createMutation.reset(),
   };
 }

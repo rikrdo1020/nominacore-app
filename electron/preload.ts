@@ -153,11 +153,14 @@ try {
     },
     login: (username: string, password: string) => rawPost('/auth/login', { username, password }),
     getMe: () => rawGet('/auth/me'),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      rawPost('/auth/change-password', { currentPassword, newPassword }),
 
     // Users
     getUsers: () => rawGet('/users'),
-    createUser: (dto: { username: string; password: string; role?: string }) => rawPost('/users', dto),
+    createUser: (dto: { username: string; role?: string }) => rawPost('/users', dto),
     deleteUser: (id: number) => rawDelete(`/users/${id}`),
+    resetUserPassword: (id: number) => rawPost(`/users/${id}/reset-password`, {}),
 
     // Employees
     getEmployees: () => apiGet('/employees'),

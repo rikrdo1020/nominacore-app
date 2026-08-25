@@ -133,6 +133,7 @@ export interface AuthUser {
   id: number;
   username: string;
   role: UserRole;
+  mustChangePassword: boolean;
 }
 
 export interface LoginResponse {
@@ -159,11 +160,13 @@ export interface ApiService {
   onUnauthorized(callback: () => void): () => void;
   login(username: string, password: string): Promise<LoginResponse>;
   getMe(): Promise<AuthUser>;
+  changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }>;
 
   // Users
   getUsers(): Promise<User[]>;
-  createUser(dto: { username: string; password: string; role?: UserRole }): Promise<{ id: number; username: string; role: UserRole }>;
+  createUser(dto: { username: string; role?: UserRole }): Promise<{ id: number; username: string; role: UserRole; tempPassword: string }>;
   deleteUser(id: number): Promise<{ success: boolean }>;
+  resetUserPassword(id: number): Promise<{ id: number; username: string; tempPassword: string }>;
 
   // Employees
   getEmployees(): Promise<Employee[]>;
