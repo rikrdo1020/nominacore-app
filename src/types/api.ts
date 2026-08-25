@@ -99,11 +99,43 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN';
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  role: UserRole;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+export interface User {
+  id: number;
+  username: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface ApiService {
   // Auto-updater
   checkForUpdates(): void;
   quitAndInstall(): void;
   onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void;
+
+  // Auth
+  setAuthToken(token: string | null): void;
+  onUnauthorized(callback: () => void): () => void;
+  login(username: string, password: string): Promise<LoginResponse>;
+  getMe(): Promise<AuthUser>;
+
+  // Users
+  getUsers(): Promise<User[]>;
+  createUser(dto: { username: string; password: string; role?: UserRole }): Promise<{ id: number; username: string; role: UserRole }>;
+  deleteUser(id: number): Promise<{ success: boolean }>;
 
   // Employees
   getEmployees(): Promise<Employee[]>;
