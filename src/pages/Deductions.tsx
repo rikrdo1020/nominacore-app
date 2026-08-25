@@ -1,228 +1,255 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import type { Employee, Deduction } from '../types/api';
+import { useNavigate } from 'react-router-dom';
+import { useDeductions } from '../hooks/use-deductions';
+import { useDeductionForm } from '../hooks/use-deduction-form';
 import { formatDateWithDay } from '../utils/time';
 
-interface Message {
-  type: 'error' | 'success';
-  text: string;
-}
+const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
+  Comida: { bg: '#e8f4fd', color: '#0a6e9e' },
+  Vales: { bg: '#fef3e2', color: '#9e6e0a' },
+  Otro: { bg: '#f0e6ff', color: '#6e0a9e' },
+};
 
-interface DeductionForm {
-  employee_id: string;
-  date: string;
-  type: 'Comida' | 'Vales' | 'Otro';
-  amount: string;
-  description: string;
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('');
 }
 
 export default function Deductions() {
-  const [deductions, setDeductions] = useState<Deduction[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filterEmp, setFilterEmp] = useState('');
-  const [filterStart, setFilterStart] = useState('');
-  const [filterEnd, setFilterEnd] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<Message | null>(null);
+  const navigate = useNavigate();
+  const {
+    filteredEmployees,
+    employeeSearch,
+    setEmployeeSearch,
+    employeeId,
+    selectedEmployee,
+    selectEmployee,
+    clearEmployee,
+    deductions,
+    isLoading,
+    loadError,
+    filterStart,
+    setFilterStart,
+    filterEnd,
+    setFilterEnd,
+    removeDeduction,
+    isDeleting,
+    deleteError,
+  } = useDeductions();
 
-  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<DeductionForm>({
-    defaultValues: {
-      employee_id: '',
-      date: new Date().toISOString().split('T')[0],
-      type: 'Comida',
-      amount: '',
-      description: '',
-    },
-  });
+  const {
+    register, onSubmit, errors, type, setValue,
+    date, weekDays, monthLabel, selectDay, shiftWeek, jumpToDate,
+    amountPresets, applyAmountPreset, justSaved, isSubmitting, submitError,
+  } = useDeductionForm(employeeId);
 
-  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
-  const clearMessage = () => setMessage(null);
-
-  const load = async () => {
-    setLoading(true);
-    clearMessage();
-    try {
-      if (window.api) {
-        const [emps, deds] = await Promise.all([
-          window.api.getEmployees(),
-          window.api.getDeductions(filterEmp ? Number(filterEmp) : null, filterStart || undefined, filterEnd || undefined),
-        ]);
-        setEmployees(emps);
-        setDeductions(deds);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al cargar descuentos: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-  useEffect(() => { load(); }, [filterEmp, filterStart, filterEnd]);
-
-  const onSubmit = async (data: DeductionForm) => {
-    if (!data.employee_id || !data.amount) return;
-    setLoading(true);
-    clearMessage();
-    try {
-      await window.api.addDeduction({
-        employee_id: Number(data.employee_id),
-        date: data.date,
-        type: data.type,
-        amount: parseFloat(data.amount),
-        description: data.description || null,
-      });
-      showSuccess('Descuento registrado correctamente');
-      reset({
-        employee_id: data.employee_id,
-        date: new Date().toISOString().split('T')[0],
-        type: 'Comida',
-        amount: '',
-        description: '',
-      });
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al registrar descuento: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const remove = async (id: number) => {
-    if (!confirm('¿Eliminar este descuento?')) return;
-    setLoading(true);
-    clearMessage();
-    try {
-      await window.api.deleteDeduction(id);
-      showSuccess('Descuento eliminado');
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al eliminar: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
-
-  const isBusy = loading || isSubmitting;
+  const isBusy = isSubmitting || isDeleting;
+  const totalAmount = deductions.reduce((sum, d) => sum + d.amount, 0);
 
   return (
     <div>
       <div className="page-header">
         <h1>Descuentos</h1>
-        <p>Registre descuentos por comida, vales y otros</p>
+        <p>Seleccione un empleado para registrar y consultar sus descuentos</p>
       </div>
-      <div className="card">
-        {message && (
-          <div className={`alert alert-${message.type}`}>{message.text}</div>
-        )}
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Empleado</label>
-              <select {...register('employee_id')} disabled={isBusy}>
-                <option value="">Seleccione...</option>
-                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+
+      {!employeeId ? (
+        <div className="card employee-picker">
+          <label className="field-label">Empleado</label>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Buscar empleado por nombre..."
+            value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="employee-list">
+            {filteredEmployees.length === 0 ? (
+              <div className="empty-state"><p>No se encontraron empleados</p></div>
+            ) : filteredEmployees.map((e) => (
+              <button key={e.id} type="button" className="employee-row" onClick={() => selectEmployee(e.id)}>
+                <span className="employee-avatar">{initials(e.name)}</span>
+                <span>{e.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="card employee-context">
+            <div className="employee-context-info">
+              <span className="employee-avatar employee-avatar-lg">{initials(selectedEmployee?.name ?? '')}</span>
+              <div>
+                <div className="employee-context-name">{selectedEmployee?.name}</div>
+                <div className="employee-context-sub">Registrando descuentos para este empleado</div>
+              </div>
             </div>
-            <div className="form-group">
-              <label>Fecha</label>
-              <input type="date" {...register('date')} disabled={isBusy} />
-            </div>
-            <div className="form-group">
-              <label>Tipo</label>
-              <select {...register('type')} disabled={isBusy}>
-                <option value="Comida">Comida</option>
-                <option value="Vales">Vales</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Monto</label>
-              <input type="number" step="0.01" min="0" {...register('amount')} style={{ width: 100 }} disabled={isBusy} />
-            </div>
-            <div className="form-group">
-              <label>Descripción</label>
-              <input {...register('description')} placeholder="Opcional" disabled={isBusy} />
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={isBusy}>
-              {isBusy ? <span className="spinner" /> : 'Agregar'}
+            <button type="button" className="btn-pill-outline" onClick={clearEmployee}>Cambiar empleado</button>
+          </div>
+
+          <div className="card">
+            <label className="field-label">Carga masiva con IA</label>
+            <p style={{ fontSize: 13, color: '#666', marginTop: -4, marginBottom: 12 }}>
+              Sube fotos de comprobantes (recibos, vales) y la IA completa fecha, tipo y monto por ti
+            </p>
+            <button
+              type="button"
+              className="btn-pill-outline"
+              onClick={() => navigate(`/deductions/bulk-upload?employeeId=${employeeId}`)}
+            >
+              Elegir imágenes
             </button>
           </div>
-        </form>
-      </div>
-      <div className="card">
-        <div className="form-row">
-          <div className="form-group">
-            <label>Filtrar por empleado</label>
-            <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)}>
-              <option value="">Todos</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+
+          <div className="card">
+            {(loadError || submitError || deleteError) && (
+              <div className="alert alert-error">{loadError || submitError || deleteError}</div>
+            )}
+            {justSaved && !submitError && (
+              <div className="save-indicator"><span className="save-dot" />Guardado</div>
+            )}
+
+            <form onSubmit={onSubmit} noValidate>
+              <label className="field-label">Fecha<span className="required">*</span></label>
+              <div className="date-jump-row">
+                <label className="date-jump-pill">
+                  {monthLabel}
+                  <span className="chevron">▾</span>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => jumpToDate(e.target.value)}
+                    className="date-jump-input"
+                    disabled={isBusy}
+                  />
+                </label>
+                <div className="week-nav">
+                  <button type="button" className="icon-btn" onClick={() => shiftWeek(-1)} disabled={isBusy} aria-label="Semana anterior">‹</button>
+                  <button type="button" className="icon-btn" onClick={() => shiftWeek(1)} disabled={isBusy} aria-label="Semana siguiente">›</button>
+                </div>
+              </div>
+              <div className="week-strip">
+                {weekDays.map((day) => (
+                  <button
+                    key={day.date}
+                    type="button"
+                    className={`day-pill${day.date === date ? ' active' : ''}${day.isToday && day.date !== date ? ' is-today' : ''}`}
+                    disabled={isBusy}
+                    onClick={() => selectDay(day.date)}
+                  >
+                    <span className="day-pill-label">{day.label}</span>
+                    <span className="day-pill-num">{day.num}</span>
+                  </button>
+                ))}
+              </div>
+              {errors.date && <span className="field-error">{errors.date.message}</span>}
+
+              <label className="field-label field-label-spaced">Tipo</label>
+              <div className="pill-tabs">
+                {(['Comida', 'Vales', 'Otro'] as const).map((t) => (
+                  <button key={t} type="button" className={type === t ? 'active' : ''} disabled={isBusy}
+                    onClick={() => setValue('type', t)}>{t}</button>
+                ))}
+              </div>
+
+              <div className="entry-block">
+                <label className="field-label">Monto</label>
+                <div className="pill-grid">
+                  {amountPresets.map((a) => (
+                    <button key={a} type="button" className="time-pill" disabled={isBusy}
+                      onClick={() => applyAmountPreset(a)}>${a}</button>
+                  ))}
+                </div>
+                <input type="number" step="0.01" min="0" {...register('amount')}
+                  className="custom-input" disabled={isBusy} placeholder="Monto personalizado" />
+                {errors.amount && <span className="field-error">{errors.amount.message}</span>}
+              </div>
+
+              <label className="field-label">Descripción</label>
+              <input {...register('description')} placeholder="Opcional" disabled={isBusy} className="custom-input" />
+
+              <div className="form-actions">
+                <button type="submit" className="btn-pill-primary" disabled={isBusy}>
+                  {isBusy ? <span className="spinner" /> : 'Agregar descuento'}
+                </button>
+              </div>
+            </form>
           </div>
-          <div className="form-group">
-            <label>Desde</label>
-            <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Hasta</label>
-            <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
-          </div>
-          {(filterStart || filterEnd) && (
-            <div className="form-group" style={{ alignSelf: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => { setFilterStart(''); setFilterEnd(''); }}>
-                Limpiar fechas
-              </button>
+
+          <div className="card">
+            <div className="form-row">
+              <div className="form-group">
+                <label>Desde</label>
+                <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Hasta</label>
+                <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} />
+              </div>
+              {(filterStart || filterEnd) && (
+                <div className="form-group" style={{ alignSelf: 'flex-end' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => { setFilterStart(''); setFilterEnd(''); }}>
+                    Limpiar fechas
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-      <div className="card">
-        {loading && deductions.length === 0 ? (
-          <div className="empty-state">
-            <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
-            <p style={{ marginTop: 12 }}>Cargando descuentos...</p>
+            {deductions.length > 0 && (
+              <div className="report-summary">
+                <div className="summary-item">
+                  <div className="label">Registros</div>
+                  <div className="value">{deductions.length}</div>
+                </div>
+                <div className="summary-item">
+                  <div className="label">Total</div>
+                  <div className="value">${totalAmount.toFixed(2)}</div>
+                </div>
+              </div>
+            )}
           </div>
-        ) : deductions.length === 0 ? (
-          <div className="empty-state"><p>No hay descuentos registrados</p></div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Empleado</th>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Monto</th>
-                <th>Descripción</th>
-                <th style={{ width: 60 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {deductions.map(d => (
-                <tr key={d.id}>
-                  <td>{d.employee_name || empName(d.employee_id)}</td>
-                  <td>{formatDateWithDay(d.date)}</td>
-                  <td><span className="status-badge" style={{
-                    background: d.type === 'Comida' ? '#e8f4fd' : d.type === 'Vales' ? '#fef3e2' : '#f0e6ff',
-                    color: d.type === 'Comida' ? '#0a6e9e' : d.type === 'Vales' ? '#9e6e0a' : '#6e0a9e',
-                  }}>{d.type}</span></td>
-                  <td>${d.amount.toFixed(2)}</td>
-                  <td>{d.description || '-'}</td>
-                  <td><button className="btn btn-danger btn-sm" onClick={() => remove(d.id)}>✕</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+
+          <div className="card">
+            {isLoading && deductions.length === 0 ? (
+              <div className="empty-state">
+                <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
+                <p style={{ marginTop: 12 }}>Cargando descuentos...</p>
+              </div>
+            ) : deductions.length === 0 ? (
+              <div className="empty-state"><p>No hay descuentos registrados para este empleado</p></div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Monto</th>
+                    <th>Descripción</th>
+                    <th style={{ width: 60 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deductions.map((d) => (
+                    <tr key={d.id}>
+                      <td>{formatDateWithDay(d.date)}</td>
+                      <td><span className="status-badge" style={{
+                        background: TYPE_BADGE[d.type]?.bg,
+                        color: TYPE_BADGE[d.type]?.color,
+                      }}>{d.type}</span></td>
+                      <td>${d.amount.toFixed(2)}</td>
+                      <td>{d.description || '-'}</td>
+                      <td><button className="btn btn-danger btn-sm" onClick={() => removeDeduction(d.id)}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

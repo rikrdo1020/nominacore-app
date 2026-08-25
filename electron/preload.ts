@@ -18,12 +18,51 @@ function camelToSnake(obj: unknown): unknown {
   return obj;
 }
 
+// --- Auth plumbing -------------------------------------------------------
+
+let authToken: string | null = null;
+
+type UnauthorizedListener = () => void;
+const unauthorizedListeners: UnauthorizedListener[] = [];
+
+function notifyUnauthorized(): void {
+  for (const listener of unauthorizedListeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error('[Preload] onUnauthorized listener threw:', err);
+    }
+  }
+}
+
+function buildHeaders(hasBody: boolean): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (hasBody) headers['Content-Type'] = 'application/json';
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  return headers;
+}
+
+// Shared response handling: notifies "unauthorized" listeners on 401 (before
+// throwing) so the renderer can react (e.g. log the user out), regardless of
+// which helper (transformed or raw) issued the request.
+async function handleResponse(res: Response): Promise<unknown> {
+  if (res.status === 401) {
+    notifyUnauthorized();
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+// --- Generic REST helpers (existing endpoints) ---------------------------
+// These convert responses from the backend's camelCase to the snake_case
+// shape the existing renderer code/types expect. Do not use these for the
+// auth/users endpoints below, whose contract types are camelCase.
+
 async function apiGet(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] GET', url);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const data = await res.json();
+  const res = await fetch(url, { headers: buildHeaders(false) });
+  const data = await handleResponse(res);
   return camelToSnake(data);
 }
 
@@ -32,11 +71,10 @@ async function apiPost(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] POST', url);
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(true),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const data = await res.json();
+  const data = await handleResponse(res);
   return camelToSnake(data);
 }
 
@@ -45,21 +83,50 @@ async function apiPut(path: string, body: unknown): Promise<unknown> {
   console.log('[Preload] PUT', url);
   const res = await fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(true),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const data = await res.json();
+  const data = await handleResponse(res);
   return camelToSnake(data);
 }
 
 async function apiDelete(path: string): Promise<unknown> {
   const url = `${BACKEND_URL}${path}`;
   console.log('[Preload] DELETE', url);
-  const res = await fetch(url, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  const data = await res.json();
+  const res = await fetch(url, { method: 'DELETE', headers: buildHeaders(false) });
+  const data = await handleResponse(res);
   return camelToSnake(data);
+}
+
+// --- Raw REST helpers (auth/users endpoints) ------------------------------
+// The NestJS auth/users contract is defined in camelCase (accessToken,
+// isActive, createdAt...). Unlike the legacy endpoints above, these are NOT
+// run through camelToSnake so the renderer receives exactly the shape
+// declared in src/types/api.ts (User, LoginResponse, etc.).
+
+async function rawGet(path: string): Promise<unknown> {
+  const url = `${BACKEND_URL}${path}`;
+  console.log('[Preload] GET (raw)', url);
+  const res = await fetch(url, { headers: buildHeaders(false) });
+  return handleResponse(res);
+}
+
+async function rawPost(path: string, body: unknown): Promise<unknown> {
+  const url = `${BACKEND_URL}${path}`;
+  console.log('[Preload] POST (raw)', url);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  });
+  return handleResponse(res);
+}
+
+async function rawDelete(path: string): Promise<unknown> {
+  const url = `${BACKEND_URL}${path}`;
+  console.log('[Preload] DELETE (raw)', url);
+  const res = await fetch(url, { method: 'DELETE', headers: buildHeaders(false) });
+  return handleResponse(res);
 }
 
 try {
@@ -72,6 +139,25 @@ try {
       ipcRenderer.on('update-status', handler);
       return () => ipcRenderer.removeListener('update-status', handler);
     },
+
+    // Auth
+    setAuthToken: (token: string | null) => {
+      authToken = token;
+    },
+    onUnauthorized: (callback: () => void) => {
+      unauthorizedListeners.push(callback);
+      return () => {
+        const idx = unauthorizedListeners.indexOf(callback);
+        if (idx !== -1) unauthorizedListeners.splice(idx, 1);
+      };
+    },
+    login: (username: string, password: string) => rawPost('/auth/login', { username, password }),
+    getMe: () => rawGet('/auth/me'),
+
+    // Users
+    getUsers: () => rawGet('/users'),
+    createUser: (dto: { username: string; password: string; role?: string }) => rawPost('/users', dto),
+    deleteUser: (id: number) => rawDelete(`/users/${id}`),
 
     // Employees
     getEmployees: () => apiGet('/employees'),
@@ -177,6 +263,10 @@ try {
         notes: record.notes,
       }),
     deleteWorkRecord: (id: number) => apiDelete(`/work-records/${id}`),
+    extractWorkRecords: (images: { file_name: string; mime_type: string; base64: string }[]) =>
+      apiPost('/work-records/extract', {
+        images: images.map((img) => ({ fileName: img.file_name, mimeType: img.mime_type, base64: img.base64 })),
+      }),
 
     // Deductions
     getDeductions: (empId?: number | null, start?: string, end?: string) => {
@@ -201,6 +291,10 @@ try {
         description: ded.description,
       }),
     deleteDeduction: (id: number) => apiDelete(`/deductions/${id}`),
+    extractDeductions: (images: { file_name: string; mime_type: string; base64: string }[]) =>
+      apiPost('/deductions/extract', {
+        images: images.map((img) => ({ fileName: img.file_name, mimeType: img.mime_type, base64: img.base64 })),
+      }),
 
     // Payroll
     calculatePayroll: (empId: number, workStart: string, workEnd: string, deductionStart: string, deductionEnd: string) => {
