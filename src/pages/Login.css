@@ -28,6 +28,15 @@
   max-width: 260px;
   line-height: 1.5;
 }
+.login-version {
+  position: absolute;
+  bottom: 20px;
+  left: 48px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.5px;
+}
+
 .login-brand-accent {
   position: absolute;
   bottom: -70px;
@@ -94,4 +103,5 @@
   .login-brand { flex: 0 0 auto; padding: 40px 32px; }
   .login-brand-accent { display: none; }
   .login-panel { justify-content: center; padding: 40px 24px; }
+  .login-version { position: static; display: block; margin-top: 16px; }
 }

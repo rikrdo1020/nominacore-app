@@ -37,7 +37,6 @@ function AppLayout() {
 
   return (
     <>
-      <UpdateNotification />
       <div className="app-layout">
         <nav className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
           <div className="sidebar-header">
@@ -101,17 +100,20 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginRoute />} />
-      <Route path="/change-password" element={<ChangePasswordRoute />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <>
+      <UpdateNotification />
+      <Routes>
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/change-password" element={<ChangePasswordRoute />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
   );
 }

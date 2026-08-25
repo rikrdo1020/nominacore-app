@@ -1,5 +1,6 @@
 import { useLoginForm } from '../hooks/use-login-form';
 import PasswordInput from '../components/PasswordInput';
+import { version } from '../../package.json';
 import './Login.css';
 
 export default function Login() {
@@ -10,6 +11,7 @@ export default function Login() {
       <aside className="login-brand">
         <h1>NominaCore</h1>
         <p>Control de horas y pagos de empleados</p>
+        <span className="login-version">v{version}</span>
         <div className="login-brand-accent" />
       </aside>
 
