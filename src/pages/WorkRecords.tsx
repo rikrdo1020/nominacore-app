@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useWorkRecords } from '../hooks/use-work-records';
 import { useWorkRecordForm } from '../hooks/use-work-record-form';
 import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
@@ -12,6 +13,7 @@ function initials(name: string): string {
 }
 
 export default function WorkRecords() {
+  const navigate = useNavigate();
   const {
     filteredEmployees,
     employeeSearch,
@@ -88,6 +90,20 @@ export default function WorkRecords() {
               </div>
             </div>
             <button type="button" className="btn-pill-outline" onClick={clearEmployee}>Cambiar empleado</button>
+          </div>
+
+          <div className="card">
+            <label className="field-label">Carga masiva con IA</label>
+            <p style={{ fontSize: 13, color: '#666', marginTop: -4, marginBottom: 12 }}>
+              Sube fotos de marcajes u hojas de horario y la IA completa fecha, entrada/salida u horas por ti
+            </p>
+            <button
+              type="button"
+              className="btn-pill-outline"
+              onClick={() => navigate(`/records/bulk-upload?employeeId=${employeeId}`)}
+            >
+              Elegir imágenes
+            </button>
           </div>
 
           <div className="card">

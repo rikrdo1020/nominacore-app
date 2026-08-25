@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEmployees } from '../lib/api/employees';
 import { deleteWorkRecord, getWorkRecords } from '../lib/api/work-records';
@@ -6,7 +7,10 @@ import { queryKeys } from '../lib/query-keys';
 
 export function useWorkRecords() {
   const queryClient = useQueryClient();
-  const [employeeId, setEmployeeId] = useState('');
+  const [searchParams] = useSearchParams();
+  // Preselects the employee when returning from the bulk-upload page, which
+  // passes it back via ?employeeId= so the user doesn't have to re-pick it.
+  const [employeeId, setEmployeeId] = useState(searchParams.get('employeeId') ?? '');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');

@@ -51,6 +51,34 @@ export interface Deduction {
   employee_name?: string;
 }
 
+export interface ImageInput {
+  file_name: string;
+  mime_type: string;
+  base64: string;
+}
+
+export interface ExtractedDeduction {
+  file_name: string;
+  date: string | null;
+  type: 'Comida' | 'Vales' | 'Otro' | null;
+  amount: number | null;
+  description: string | null;
+  confidence: 'high' | 'low';
+  error: string | null;
+}
+
+export interface ExtractedWorkRecord {
+  file_name: string;
+  date: string | null;
+  is_direct_entry: boolean;
+  entry_time: string | null;
+  exit_time: string | null;
+  direct_hours: number | null;
+  notes: string | null;
+  confidence: 'high' | 'low';
+  error: string | null;
+}
+
 export interface DailyBreakdown {
   date: string;
   regular_hours: number;
@@ -183,11 +211,13 @@ export interface ApiService {
   addWorkRecord(record: Omit<WorkRecord, 'id' | 'created_at'>): Promise<{ id: number }>;
   updateWorkRecord(id: number, record: Partial<Omit<WorkRecord, 'id' | 'created_at'>>): Promise<{ success: boolean }>;
   deleteWorkRecord(id: number): Promise<{ success: boolean }>;
+  extractWorkRecords(images: ImageInput[]): Promise<ExtractedWorkRecord[]>;
 
   // Deductions
   getDeductions(empId?: number | null, start?: string, end?: string): Promise<Deduction[]>;
   addDeduction(ded: Omit<Deduction, 'id' | 'created_at'>): Promise<{ id: number }>;
   deleteDeduction(id: number): Promise<{ success: boolean }>;
+  extractDeductions(images: ImageInput[]): Promise<ExtractedDeduction[]>;
 
   // Payroll
   calculatePayroll(empId: number, workStart: string, workEnd: string, deductionStart: string, deductionEnd: string): Promise<PayrollReportData>;

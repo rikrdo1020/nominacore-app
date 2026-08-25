@@ -4,7 +4,9 @@ import Employees from './pages/Employees';
 import RateRules from './pages/RateRules';
 import EmployeeRates from './pages/EmployeeRates';
 import WorkRecords from './pages/WorkRecords';
+import WorkRecordsBulkUpload from './pages/WorkRecordsBulkUpload';
 import Deductions from './pages/Deductions';
+import DeductionsBulkUpload from './pages/DeductionsBulkUpload';
 import PayrollReport from './pages/PayrollReport';
 import Login from './pages/Login';
 import Users from './pages/Users';
@@ -70,7 +72,9 @@ function AppLayout() {
             <Route path="/rates" element={<RateRules />} />
             <Route path="/employee-rates" element={<EmployeeRates />} />
             <Route path="/records" element={<WorkRecords />} />
+            <Route path="/records/bulk-upload" element={<WorkRecordsBulkUpload />} />
             <Route path="/deductions" element={<Deductions />} />
+            <Route path="/deductions/bulk-upload" element={<DeductionsBulkUpload />} />
             <Route path="/reports" element={<PayrollReport />} />
             <Route
               path="/users"

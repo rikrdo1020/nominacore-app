@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useDeductions } from '../hooks/use-deductions';
 import { useDeductionForm } from '../hooks/use-deduction-form';
 import { formatDateWithDay } from '../utils/time';
@@ -18,6 +19,7 @@ function initials(name: string): string {
 }
 
 export default function Deductions() {
+  const navigate = useNavigate();
   const {
     filteredEmployees,
     employeeSearch,
@@ -87,6 +89,20 @@ export default function Deductions() {
               </div>
             </div>
             <button type="button" className="btn-pill-outline" onClick={clearEmployee}>Cambiar empleado</button>
+          </div>
+
+          <div className="card">
+            <label className="field-label">Carga masiva con IA</label>
+            <p style={{ fontSize: 13, color: '#666', marginTop: -4, marginBottom: 12 }}>
+              Sube fotos de comprobantes (recibos, vales) y la IA completa fecha, tipo y monto por ti
+            </p>
+            <button
+              type="button"
+              className="btn-pill-outline"
+              onClick={() => navigate(`/deductions/bulk-upload?employeeId=${employeeId}`)}
+            >
+              Elegir imágenes
+            </button>
           </div>
 
           <div className="card">

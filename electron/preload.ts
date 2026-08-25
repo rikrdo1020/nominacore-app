@@ -263,6 +263,10 @@ try {
         notes: record.notes,
       }),
     deleteWorkRecord: (id: number) => apiDelete(`/work-records/${id}`),
+    extractWorkRecords: (images: { file_name: string; mime_type: string; base64: string }[]) =>
+      apiPost('/work-records/extract', {
+        images: images.map((img) => ({ fileName: img.file_name, mimeType: img.mime_type, base64: img.base64 })),
+      }),
 
     // Deductions
     getDeductions: (empId?: number | null, start?: string, end?: string) => {
@@ -287,6 +291,10 @@ try {
         description: ded.description,
       }),
     deleteDeduction: (id: number) => apiDelete(`/deductions/${id}`),
+    extractDeductions: (images: { file_name: string; mime_type: string; base64: string }[]) =>
+      apiPost('/deductions/extract', {
+        images: images.map((img) => ({ fileName: img.file_name, mimeType: img.mime_type, base64: img.base64 })),
+      }),
 
     // Payroll
     calculatePayroll: (empId: number, workStart: string, workEnd: string, deductionStart: string, deductionEnd: string) => {
