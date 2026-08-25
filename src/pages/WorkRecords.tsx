@@ -1,131 +1,27 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import type { Employee, WorkRecord } from '../types/api';
+import { useWorkRecords } from '../hooks/use-work-records';
+import { useWorkRecordForm } from '../hooks/use-work-record-form';
 import { calcHours, formatDateWithDay, formatTime12Hour } from '../utils/time';
 
-interface Message {
-  type: 'error' | 'success';
-  text: string;
-}
-
-interface WorkRecordForm {
-  employee_id: string;
-  date: string;
-  is_direct_entry: boolean;
-  entry_time: string;
-  exit_time: string;
-  direct_hours: string;
-  notes: string;
-}
-
 export default function WorkRecords() {
-  const [records, setRecords] = useState<WorkRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [filterEmp, setFilterEmp] = useState('');
-  const [filterStart, setFilterStart] = useState('');
-  const [filterEnd, setFilterEnd] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<Message | null>(null);
+  const {
+    employees,
+    records,
+    isLoading,
+    loadError,
+    filterEmp,
+    setFilterEmp,
+    filterStart,
+    setFilterStart,
+    filterEnd,
+    setFilterEnd,
+    empName,
+    removeRecord,
+    isDeleting,
+    deleteError,
+  } = useWorkRecords();
+  const { register, onSubmit, errors, setValue, isDirectEntry, isSubmitting, submitError } = useWorkRecordForm();
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { isSubmitting } } = useForm<WorkRecordForm>({
-    defaultValues: {
-      employee_id: '',
-      date: new Date().toISOString().split('T')[0],
-      is_direct_entry: false,
-      entry_time: '08:00',
-      exit_time: '17:00',
-      direct_hours: '8',
-      notes: '',
-    },
-  });
-
-  const isDirectEntry = watch('is_direct_entry');
-
-  const showError = (msg: string) => setMessage({ type: 'error', text: msg });
-  const showSuccess = (msg: string) => setMessage({ type: 'success', text: msg });
-  const clearMessage = () => setMessage(null);
-
-  const load = async () => {
-    setLoading(true);
-    clearMessage();
-    try {
-      if (window.api) {
-        setEmployees(await window.api.getEmployees());
-        const start = filterStart || undefined;
-        const end = filterEnd || undefined;
-        if (filterEmp) {
-          setRecords(await window.api.getWorkRecords(Number(filterEmp), start, end));
-        } else {
-          setRecords(await window.api.getWorkRecordsAll(start, end));
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al cargar registros: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-  useEffect(() => { load(); }, [filterEmp, filterStart, filterEnd]);
-
-  const onSubmit = async (data: WorkRecordForm) => {
-    if (!data.employee_id || !data.date) return;
-    setLoading(true);
-    clearMessage();
-    try {
-      const record: Omit<WorkRecord, 'id' | 'created_at'> = {
-        employee_id: Number(data.employee_id),
-        date: data.date,
-        is_direct_entry: data.is_direct_entry ? 1 : 0,
-        entry_time: data.is_direct_entry ? null : data.entry_time,
-        exit_time: data.is_direct_entry ? null : data.exit_time,
-        direct_hours: data.is_direct_entry ? parseFloat(data.direct_hours) : null,
-        notes: data.notes || null,
-      };
-      await window.api.addWorkRecord(record);
-      showSuccess('Registro guardado correctamente');
-      reset({
-        employee_id: data.employee_id,
-        date: data.date,
-        is_direct_entry: false,
-        entry_time: '08:00',
-        exit_time: '17:00',
-        direct_hours: '8',
-        notes: '',
-      });
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al guardar registro: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const remove = async (id: number) => {
-    if (!confirm('¿Eliminar este registro?')) return;
-    setLoading(true);
-    clearMessage();
-    try {
-      await window.api.deleteWorkRecord(id);
-      showSuccess('Registro eliminado');
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Desconocido';
-      showError('Error al eliminar: ' + msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const empName = (id: number) => employees.find(e => e.id === id)?.name || `ID:${id}`;
-
-  const isBusy = loading || isSubmitting;
+  const isBusy = isSubmitting || isDeleting;
 
   return (
     <div>
@@ -134,10 +30,10 @@ export default function WorkRecords() {
         <p>Ingrese horas trabajadas por empleado</p>
       </div>
       <div className="card">
-        {message && (
-          <div className={`alert alert-${message.type}`}>{message.text}</div>
+        {(loadError || submitError || deleteError) && (
+          <div className="alert alert-error">{loadError || submitError || deleteError}</div>
         )}
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={onSubmit} noValidate>
           <div className="form-row">
             <div className="form-group">
               <label>Empleado</label>
@@ -145,10 +41,12 @@ export default function WorkRecords() {
                 <option value="">Seleccione...</option>
                 {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>
+              {errors.employee_id && <span className="field-error">{errors.employee_id.message}</span>}
             </div>
             <div className="form-group">
               <label>Fecha</label>
               <input type="date" {...register('date')} disabled={isBusy} />
+              {errors.date && <span className="field-error">{errors.date.message}</span>}
             </div>
             <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <label htmlFor="mode-entry" style={{ textTransform: 'none', letterSpacing: 0, cursor: 'pointer' }}>Entrada/Salida</label>
@@ -165,16 +63,19 @@ export default function WorkRecords() {
                 <label>Horas trabajadas</label>
                 <input type="number" step="0.25" min="0" max="24" {...register('direct_hours')}
                   style={{ width: 100 }} disabled={isBusy} />
+                {errors.direct_hours && <span className="field-error">{errors.direct_hours.message}</span>}
               </div>
             ) : (
               <>
                 <div className="form-group">
                   <label>Entrada</label>
                   <input type="time" {...register('entry_time')} disabled={isBusy} />
+                  {errors.entry_time && <span className="field-error">{errors.entry_time.message}</span>}
                 </div>
                 <div className="form-group">
                   <label>Salida</label>
                   <input type="time" {...register('exit_time')} disabled={isBusy} />
+                  {errors.exit_time && <span className="field-error">{errors.exit_time.message}</span>}
                 </div>
               </>
             )}
@@ -205,11 +106,10 @@ export default function WorkRecords() {
             <label>Hasta</label>
             <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
           </div>
-          <button className="btn btn-secondary" onClick={load} disabled={loading}>Filtrar</button>
         </div>
       </div>
       <div className="card">
-        {loading && records.length === 0 ? (
+        {isLoading && records.length === 0 ? (
           <div className="empty-state">
             <span className="spinner" style={{ borderColor: 'rgba(15,52,96,0.2)', borderTopColor: '#0f3460' }} />
             <p style={{ marginTop: 12 }}>Cargando registros...</p>
@@ -242,7 +142,7 @@ export default function WorkRecords() {
                     r.entry_time && r.exit_time ? calcHours(r.entry_time, r.exit_time) : '-'
                   )}</td>
                   <td>{r.notes || '-'}</td>
-                  <td><button className="btn btn-danger btn-sm" onClick={() => remove(r.id)}>✕</button></td>
+                  <td><button className="btn btn-danger btn-sm" onClick={() => removeRecord(r.id)}>✕</button></td>
                 </tr>
               ))}
             </tbody>
